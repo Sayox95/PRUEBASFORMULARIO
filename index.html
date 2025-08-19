@@ -217,18 +217,13 @@
     let lastBlobUrl = null;
     const urlGuardarReporte = '/api/guardar';
     const urlCatalogos = 'https://script.google.com/macros/s/AKfycbxp2yVp4hF-t9f2LdU9NhZxVt6RwXyL3uKrKzXk4a_l4na2Rkd1LZMB02pEJeRQ_eCF/exec';
-    const FALLBACK_SECTORES = ['Norte','Sur','Este','Oeste'];
-    const FALLBACK_PLACAS = {
-      'Norte': ['HNR-1001','HNR-1042','HNR-1099'],
-      'Sur':   ['HSR-2100','HSR-2244','HSR-2399'],
-      'Este':  ['HES-3301','HES-3340','HES-3390'],
-      'Oeste': ['HOW-4402','HOW-4477','HOW-4499']
-    };
-    function setSelectOptions(sel, arr, placeholder='Selecciona…'){
+            function setSelectOptions(sel, arr, placeholder='Selecciona…'){
       if(!sel) return; sel.innerHTML = '<option value="">'+placeholder+'</option>' + (arr||[]).map(v=>'<option value="'+v+'">'+v+'</option>').join('');
     }
     async function cargarCatalogos(){
-      let sectores = FALLBACK_SECTORES, placas = FALLBACK_PLACAS, jefes = {};
+      let sectores = [];
+      let placas = {};
+      let jefes = {};
       try{
         const res = await fetch(urlCatalogos, { method: 'GET', mode: 'cors' });
         if(res.ok){
@@ -251,14 +246,15 @@
             jefes = jefePorPlaca;
           }
         }
-      }catch(_){ /* fallback */ }
+      }catch(_){ showToast('No se pudieron cargar catálogos'); }
       const selSector = document.getElementById('sector');
       const selPlaca = document.getElementById('placa');
       setSelectOptions(selSector, sectores);
       selSector.dataset._placas = JSON.stringify(placas);
       if (selPlaca) selPlaca.dataset._jefes = JSON.stringify(jefes);
+      selSector.disabled = sectores.length === 0;
+      if (selPlaca) selPlaca.disabled = true;
     }
-    
     function handleSectorChange(){
       const selSector = document.getElementById('sector');
       const selPlaca = document.getElementById('placa');
@@ -435,21 +431,42 @@
 
     let _previewTimer; function schedulePreview(){ clearTimeout(_previewTimer); _previewTimer=setTimeout(()=>{ try{ const data=getFormData(); const dd=buildDocDefinition(data,ImageState); renderPdfPreview(dd); }catch(e){} },250); }
 
-    async function postJSONWithRetry(url,payload,retries=1,timeoutMs=10000){ const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),timeoutMs); try{ const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal}); clearTimeout(t); if(!res.ok) throw new Error('HTTP '+res.status); const json=await res.json().catch(()=>({status:'OK'})); if(json.status&&json.status!=='OK') throw new Error(json.message||'Error lógico'); return json; }catch(e){ clearTimeout(t); if(retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs); throw e; } }
-
-    async function verificarDuplicado(placa, fecha, factura){
-      try{
-        const res = await fetch(urlGuardarReporte, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ validarDuplicado: true, Placa: placa, Fecha: fecha, NumeroFactura: factura })
+    async function postJSONWithRetry(url, payload, retries=1, timeoutMs=10000){
+      const controller = new AbortController();
+      const t = setTimeout(()=>controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload), signal: controller.signal
         });
-        const json = await res.json().catch(()=>({}));
-        return !!(json && (json.duplicado===true || json.status==='DUPLICADO'));
-      }catch(e){ return false; }
-    }
-
-    async function enviarReporte(){ if(!validateForm()){ showToast('Completa los campos requeridos'); return; } setBusy(true); try{ await waitForPdfMake(); const data=getFormData(); const duplicado = await verificarDuplicado(data.Placa, data.Fecha, data.NumeroFactura); if (duplicado) { alert('Ya existe un reporte con esa Placa, Fecha y Número de factura.'); setBusy(false); return; } const dd=buildDocDefinition(data,ImageState); const filename=((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf').replace(/\s+/g,'_'); await new Promise((resolve,reject)=>{ pdfMake.createPdf(dd).getBase64(async(b64)=>{ try{ await postJSONWithRetry(urlGuardarReporte,{...data,pdf:b64,filename},2,12000); resolve(); } catch(err){ reject(err); } }); }); pdfMake.createPdf(dd).download(filename); renderPdfPreview(dd); showToast('Información enviada correctamente'); } catch(e){ alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally { setBusy(false); } }
+        clearTimeout(t);
+        if (!res.ok) {
+          let bodyText = '';
+          try { bodyText = await res.text(); } catch(_){ }
+          let msg = 'HTTP ' + res.status;
+          if (bodyText) {
+            try {
+              const j = JSON.parse(bodyText);
+              if (j && j.message) msg += ' - ' + j.message;
+              else msg += ' - ' + String(bodyText).slice(0,200);
+            } catch { msg += ' - ' + String(bodyText).slice(0,200); }
+          }
+          const err = new Error(msg);
+          err.status = res.status;
+          err.body = bodyText;
+          throw err;
+        }
+        let json = {};
+        try { json = await res.json(); } catch(_) { json = { status: 'OK' }; }
+        if (json.status && json.status !== 'OK') {
+          const err = new Error(json.message || ('Respuesta inválida: ' + JSON.stringify(json).slice(0,200)));
+          err.status = 200; err.body = json; throw err;
+        }
+        return json;
+      } catch (e) {
+        const msg = (e && e.message) ? e.message : 'Inténtalo de nuevo.';
+        alert('Error al guardar el reporte: ' + msg);
+      } finally { setBusy(false); } }
 
     document.getElementById('btnPreview')?.addEventListener('click',schedulePreview);
     document.getElementById('btnEnviar')?.addEventListener('click',enviarReporte);
