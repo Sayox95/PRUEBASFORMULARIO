@@ -8,6 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
   <script defer src="https://unpkg.com/blueimp-load-image/js/load-image.all.min.js"></script>
   <style>
     :root{--space:clamp(.75rem,2.5vw,1rem);--space-lg:clamp(1rem,3.5vw,1.25rem);--radius:12px;--muted:#c9d3e0;--text:#eaf0f8;--primary:#4c9ffe;--danger:#ff5d7a}
@@ -38,6 +40,8 @@
     .previewWrap{border-radius:var(--radius);overflow:clip;border:1px solid #213154}
     #previewFrame{width:100%;height:min(75vh,900px);display:block;border:0;background:#0a0f1e}
     #previewFallback{padding:var(--space)}
+    #pdfJsContainer{background:#f4f5f7; padding:12px; display:block;}
+    .pdfjs-page{display:block;margin:0 auto 12px; max-width:100%; height:auto;}
     .thumbs{display:grid;gap:var(--space);grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
     .thumb{border:1px dashed #335084;border-radius:.75rem;padding:.5rem;background:#0f172a;min-height:160px;display:grid;place-items:center}
     .thumb img{max-width:100%;height:auto;object-fit:contain;display:block}
@@ -199,6 +203,7 @@
       <h2 id="prevTitle" style="margin-top:0">Vista previa del PDF</h2>
       <div class="previewWrap">
         <iframe id="previewFrame" title="Vista previa del PDF"></iframe>
+        <div id="pdfJsContainer" hidden></div>
         <div id="previewFallback" hidden>
           <p>Tu navegador no puede mostrar el PDF embebido.</p>
           <div class="actions">
@@ -302,26 +307,66 @@
 
     function waitForPdfMake(timeout=12000){ return new Promise((resolve,reject)=>{ const t0=Date.now(); (function check(){ if(window.pdfMake && typeof window.pdfMake.createPdf==='function') return resolve(window.pdfMake); if(Date.now()-t0>timeout) return reject(new Error('pdfMake no cargó')); setTimeout(check,30); })(); }); }
 
+    function base64ToUint8Array(base64){
+      const bin = atob(base64); const len = bin.length; const bytes = new Uint8Array(len);
+      for(let i=0;i<len;i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
     function renderPdfPreview(docDefinition){
       const iframe = document.getElementById('previewFrame');
       const fb = document.getElementById('previewFallback');
       const btnAbrir = document.getElementById('btnAbrirPdf');
       const linkDesc = document.getElementById('linkDescargarPdf');
+      const jsContainer = document.getElementById('pdfJsContainer');
 
       if (pdfEmbedPodriaFallar()) {
         window.pdfMake.createPdf(docDefinition).getBase64(function(b64){
-          const dataUrl = 'data:application/pdf;base64,' + b64;
-          fb.hidden = false; iframe.style.display = 'none';
-          const openPdf = function(){ const w = window.open(dataUrl, '_blank', 'noopener'); if(!w){ window.location.href = dataUrl; } };
-          btnAbrir.onclick = openPdf; linkDesc.href = dataUrl; linkDesc.download = 'reporte-preview.pdf';
+          const hasPdfJs = !!(window.pdfjsLib && window.pdfjsLib.getDocument);
+          if (hasPdfJs) {
+            fb.hidden = true; iframe.style.display = 'none'; jsContainer.hidden = false; jsContainer.innerHTML='';
+            if (window.pdfjsLib.GlobalWorkerOptions) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            const data = base64ToUint8Array(b64);
+            window.pdfjsLib.getDocument({data}).promise.then(async function(pdf){
+              const wrap = document.querySelector('.previewWrap');
+              const wrapW = (wrap ? wrap.clientWidth : 800) - 24;
+              for (let p=1; p<=pdf.numPages; p++){
+                const page = await pdf.getPage(p);
+                const viewport = page.getViewport({scale:1});
+                const scale = Math.min(wrapW / viewport.width, 2);
+                const v = page.getViewport({scale: scale});
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = Math.ceil(v.width);
+                canvas.height = Math.ceil(v.height);
+                canvas.className = 'pdfjs-page';
+                await page.render({canvasContext: ctx, viewport: v}).promise;
+                jsContainer.appendChild(canvas);
+              }
+            }).catch(function(){
+              const dataUrl = 'data:application/pdf;base64,' + b64;
+              fb.hidden = false; iframe.style.display = 'none'; jsContainer.hidden = true;
+              btnAbrir.onclick = function(){ const w = window.open(dataUrl,'_blank','noopener'); if(!w) window.location.href = dataUrl; };
+              linkDesc.href = dataUrl; linkDesc.download = 'reporte-preview.pdf';
+            });
+          } else {
+            const dataUrl = 'data:application/pdf;base64,' + b64;
+            fb.hidden = false; iframe.style.display = 'none'; jsContainer.hidden = true;
+            btnAbrir.onclick = function(){ const w = window.open(dataUrl,'_blank','noopener'); if(!w) window.location.href = dataUrl; };
+            linkDesc.href = dataUrl; linkDesc.download = 'reporte-preview.pdf';
+          }
         });
         return;
       }
 
       window.pdfMake.createPdf(docDefinition).getBlob(function(blob){
         if (lastBlobUrl) { URL.revokeObjectURL(lastBlobUrl); lastBlobUrl = null; }
-        const blobUrl = URL.createObjectURL(blob); lastBlobUrl = blobUrl;
-        fb.hidden = true; iframe.style.display = 'block'; iframe.src = blobUrl;
+        const blobUrl = URL.createObjectURL(blob);
+        lastBlobUrl = blobUrl;
+        fb.hidden = true; jsContainer.hidden = true; iframe.style.display = 'block';
+        iframe.src = blobUrl;
       });
     }
 
