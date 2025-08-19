@@ -431,14 +431,51 @@
 
     let _previewTimer; function schedulePreview(){ clearTimeout(_previewTimer); _previewTimer=setTimeout(()=>{ try{ const data=getFormData(); const dd=buildDocDefinition(data,ImageState); renderPdfPreview(dd); }catch(e){} },250); }
 
-    async function postJSONWithRetry(url, payload, retries=1, timeoutMs=10000){
+    async function postJSONWithRetry(url, payload, retries=1, timeoutMs=15000){
       const controller = new AbortController();
       const t = setTimeout(()=>controller.abort(), timeoutMs);
       try {
         const res = await fetch(url, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload), signal: controller.signal
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
         });
+        clearTimeout(t);
+
+        const ctype = (res.headers.get('content-type')||'').toLowerCase();
+        const bodyText = await res.text();
+
+        if (!res.ok) {
+          let msg = `HTTP ${res.status}`;
+          if (ctype.includes('application/json')) {
+            try { const j = JSON.parse(bodyText); if (j.message) msg += ` - ${j.message}`; } catch {}
+          } else if (bodyText) {
+            msg += ' - ' + bodyText.slice(0,200);
+          }
+          const err = new Error(msg);
+          err.status = res.status; err.body = bodyText; throw err;
+        }
+
+        let json = null;
+        if (ctype.includes('application/json')) {
+          try { json = JSON.parse(bodyText); } catch {}
+        }
+        if (!json) {
+          const err = new Error('Respuesta no JSON del servidor');
+          err.status = res.status; err.body = bodyText; throw err;
+        }
+        if (json.status && json.status !== 'OK') {
+          const err = new Error(json.message || ('Respuesta inválida: ' + JSON.stringify(json).slice(0,200)));
+          err.status = res.status; err.body = json; throw err;
+        }
+        return json;
+      } catch (e) {
+        clearTimeout(t);
+        if (retries > 0) return postJSONWithRetry(url, payload, retries-1, timeoutMs);
+        throw e;
+      }
+    });
         clearTimeout(t);
         if (!res.ok) {
           let bodyText = '';
