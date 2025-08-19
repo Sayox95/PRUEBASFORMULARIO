@@ -61,7 +61,9 @@
         <div class="grid cols-3">
           <div>
             <label for="sector">Sector</label>
-            <input id="sector" name="sector" placeholder="Ej. Norte" required />
+            <select id="sector" name="sector" required disabled>
+              <option value="">Cargando…</option>
+            </select>
             <div class="error" id="err_sector"></div>
           </div>
           <div>
@@ -71,7 +73,9 @@
           </div>
           <div>
             <label for="placa">Placa</label>
-            <input id="placa" name="placa" placeholder="ABC-1234" required autocomplete="off" />
+            <select id="placa" name="placa" required disabled>
+              <option value="">Selecciona…</option>
+            </select>
             <div class="error" id="err_placa"></div>
           </div>
         </div>
@@ -88,7 +92,7 @@
           </div>
           <div>
             <label for="jefe">Jefe inmediato</label>
-            <input id="jefe" name="jefe" placeholder="Nombre jefe" />
+            <input id="jefe" name="jefe" placeholder="Nombre jefe" readonly />
             <div class="error" id="err_jefe"></div>
           </div>
         </div>
@@ -219,6 +223,53 @@
 
   <script>
     const ImageState = {};
+    const urlGuardarReporte = '/api/guardar';
+    const Catalogos = { sectores: [], placasPorSector: {}, jefePorSector: {} };
+    const urlCatalogos = 'https://script.google.com/macros/s/AKfycbxp2yVp4hF-t9f2LdU9NhZxVt6RwXyL3uKrKzXk4a_l4na2Rkd1LZMB02pEJeRQ_eCF/exec';
+    function setSelectOptions(sel, arr, placeholder='Selecciona…'){
+      if(!sel) return;
+      const opts = ['<option value="">'+placeholder+'</option>'].concat((arr||[]).map(v=>'<option>'+String(v)+'</option>'));
+      sel.innerHTML = opts.join('');
+    }
+    async function cargarCatalogos(){
+      const selSector = document.getElementById('sector');
+      const selPlaca = document.getElementById('placa');
+      if (selSector) selSector.disabled = true;
+      if (selPlaca) selPlaca.disabled = true;
+      try{
+        const res = await fetch(urlCatalogos, { method: 'GET', mode: 'cors' });
+        const json = await res.json();
+        if (Array.isArray(json)){
+          const setSect = new Set();
+          const placasPorSector = {};
+          const jefePorSector = {};
+          for (const row of json){
+            const placa = (row && row.PLACA ? String(row.PLACA).trim() : '');
+            const sector = (row && row.Sector ? String(row.Sector).trim() : '');
+            const jefe = (row && row['Jefe inmediato'] ? String(row['Jefe inmediato']).trim() : '');
+            if (!placa || !sector) continue;
+            setSect.add(sector);
+            (placasPorSector[sector] = placasPorSector[sector] || []).push(placa);
+            if (jefe && !jefePorSector[sector]) jefePorSector[sector] = jefe;
+          }
+          Catalogos.sectores = Array.from(setSect).sort();
+          Catalogos.placasPorSector = placasPorSector;
+          Catalogos.jefePorSector = jefePorSector;
+          setSelectOptions(selSector, Catalogos.sectores, 'Selecciona…');
+          if (selSector) selSector.disabled = false;
+        }
+      }catch(e){ console.error('Catálogos:', e); }
+    }
+    function onSectorChange(){
+      const selSector = document.getElementById('sector');
+      const selPlaca = document.getElementById('placa');
+      const jefeInput = document.getElementById('jefe');
+      const sector = selSector ? selSector.value : '';
+      const placas = (Catalogos.placasPorSector[sector] || []).slice().sort();
+      setSelectOptions(selPlaca, placas, 'Selecciona…');
+      if (selPlaca) selPlaca.disabled = placas.length===0;
+      if (jefeInput) jefeInput.value = Catalogos.jefePorSector[sector] || '';
+    }
     let lastBlobUrl = null;
 
     function showToast(msg='Hecho'){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._timer); showToast._timer=setTimeout(()=>{t.style.display='none'},2500); }
@@ -380,14 +431,24 @@
 
     async function postJSONWithRetry(url,payload,retries=1,timeoutMs=10000){ const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),timeoutMs); try{ const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal}); clearTimeout(t); if(!res.ok) throw new Error('HTTP '+res.status); const json=await res.json().catch(()=>({status:'OK'})); if(json.status&&json.status!=='OK') throw new Error(json.message||'Error lógico'); return json; }catch(e){ clearTimeout(t); if(retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs); throw e; } }
 
-    async function enviarReporte(){ if(!validateForm()){ showToast('Completa los campos requeridos'); return; } setBusy(true); try{ await waitForPdfMake(); const data=getFormData(); const dd=buildDocDefinition(data,ImageState); const filename=((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf').replace(/\s+/g,'_'); await new Promise((resolve,reject)=>{ pdfMake.createPdf(dd).getBase64(async(b64)=>{ try{ await postJSONWithRetry('/api/guardar',{...data,pdf:b64,filename},2,12000); resolve(); } catch(err){ reject(err); } }); }); pdfMake.createPdf(dd).download(filename); renderPdfPreview(dd); showToast('Información enviada correctamente'); } catch(e){ alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally { setBusy(false); } }
+    async function enviarReporte(){ if(!validateForm()){ showToast('Completa los campos requeridos'); return; } setBusy(true); try{ await waitForPdfMake(); const data=getFormData(); const dd=buildDocDefinition(data,ImageState); const filename=((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf').replace(/\s+/g,'_'); await new Promise((resolve,reject)=>{ pdfMake.createPdf(dd).getBase64(async(b64)=>{ try{ await postJSONWithRetry(urlGuardarReporte,{...data,pdf:b64,filename},2,12000); resolve(); } catch(err){ reject(err); } }); }); pdfMake.createPdf(dd).download(filename); renderPdfPreview(dd); showToast('Información enviada correctamente'); } catch(e){ alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally { setBusy(false); } }
 
     document.getElementById('btnPreview')?.addEventListener('click',schedulePreview);
     document.getElementById('btnEnviar')?.addEventListener('click',enviarReporte);
     ;['sector','sector_lista','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(id=>document.getElementById(id)?.addEventListener('change',schedulePreview));
 
     window.addEventListener('DOMContentLoaded',()=>{ const qp=new URLSearchParams(location.search); if(qp.get('test')==='1'){ /* reserved */ } });
-    window.addEventListener('load', async ()=>{ try{ await waitForPdfMake(); document.getElementById('btnPreview').disabled=false; document.getElementById('btnEnviar').disabled=false; }catch(e){} });
+    window.addEventListener('load', async ()=>{
+      try{
+        await waitForPdfMake();
+        await cargarCatalogos();
+        const btnPrev = document.getElementById('btnPreview');
+        const btnEnv = document.getElementById('btnEnviar');
+        if (btnPrev) btnPrev.disabled=false;
+        if (btnEnv) btnEnv.disabled=false;
+        document.getElementById('sector')?.addEventListener('change', onSectorChange);
+      }catch(e){}
+    });
     window.addEventListener('beforeunload',()=>{ if(lastBlobUrl) URL.revokeObjectURL(lastBlobUrl); });
   </script>
 </body>
