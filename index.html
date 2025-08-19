@@ -61,7 +61,9 @@
         <div class="grid cols-3">
           <div>
             <label for="sector">Sector</label>
-            <input id="sector" name="sector" placeholder="Ej. Norte" required />
+            <select id="sector" name="sector" required>
+              <option value="">Selecciona…</option>
+            </select>
             <div class="error" id="err_sector"></div>
           </div>
           <div>
@@ -71,7 +73,9 @@
           </div>
           <div>
             <label for="placa">Placa</label>
-            <input id="placa" name="placa" placeholder="ABC-1234" required autocomplete="off" />
+            <select id="placa" name="placa" required disabled>
+              <option value="">Selecciona…</option>
+            </select>
             <div class="error" id="err_placa"></div>
           </div>
         </div>
@@ -137,16 +141,7 @@
             <input id="nombre_comercio" name="nombre_comercio" required />
             <div class="error" id="err_nombre_comercio"></div>
           </div>
-          <div>
-            <label for="sector_lista">Sector (lista opcional)</label>
-            <select id="sector_lista" name="sector_lista">
-              <option value="">Selecciona…</option>
-              <option>Norte</option>
-              <option>Sur</option>
-              <option>Este</option>
-              <option>Oeste</option>
-            </select>
-          </div>
+          
         </div>
         <hr style="border-color:#223052;opacity:.5" />
         <div class="grid cols-3">
@@ -220,7 +215,69 @@
   <script>
     const ImageState = {};
     let lastBlobUrl = null;
-
+    const urlGuardarReporte = '/api/guardar';
+    const urlCatalogos = 'https://script.google.com/macros/s/AKfycbxp2yVp4hF-t9f2LdU9NhZxVt6RwXyL3uKrKzXk4a_l4na2Rkd1LZMB02pEJeRQ_eCF/exec';
+    const FALLBACK_SECTORES = ['Norte','Sur','Este','Oeste'];
+    const FALLBACK_PLACAS = {
+      'Norte': ['HNR-1001','HNR-1042','HNR-1099'],
+      'Sur':   ['HSR-2100','HSR-2244','HSR-2399'],
+      'Este':  ['HES-3301','HES-3340','HES-3390'],
+      'Oeste': ['HOW-4402','HOW-4477','HOW-4499']
+    };
+    function setSelectOptions(sel, arr, placeholder='Selecciona…'){
+      if(!sel) return; sel.innerHTML = '<option value="">'+placeholder+'</option>' + (arr||[]).map(v=>'<option value="'+v+'">'+v+'</option>').join('');
+    }
+    async function cargarCatalogos(){
+      let sectores = FALLBACK_SECTORES, placas = FALLBACK_PLACAS, jefes = {};
+      try{
+        const res = await fetch(urlCatalogos, { method: 'GET', mode: 'cors' });
+        if(res.ok){
+          const json = await res.json();
+          if (Array.isArray(json)){
+            const setSect = new Set();
+            const placasPorSector = {};
+            const jefePorPlaca = {};
+            for (const row of json){
+              const placa = (row && row.PLACA ? String(row.PLACA).trim() : '');
+              const sector = (row && row.Sector ? String(row.Sector).trim() : '');
+              const jefe = (row && row['Jefe inmediato'] ? String(row['Jefe inmediato']).trim() : '');
+              if(!placa || !sector) continue;
+              setSect.add(sector);
+              (placasPorSector[sector] = placasPorSector[sector] || []).push(placa);
+              if (jefe) jefePorPlaca[placa] = jefe;
+            }
+            sectores = Array.from(setSect);
+            placas = placasPorSector;
+            jefes = jefePorPlaca;
+          }
+        }
+      }catch(_){ /* fallback */ }
+      const selSector = document.getElementById('sector');
+      const selPlaca = document.getElementById('placa');
+      setSelectOptions(selSector, sectores);
+      selSector.dataset._placas = JSON.stringify(placas);
+      if (selPlaca) selPlaca.dataset._jefes = JSON.stringify(jefes);
+    }
+    
+    function handleSectorChange(){
+      const selSector = document.getElementById('sector');
+      const selPlaca = document.getElementById('placa');
+      const inputJefe = document.getElementById('jefe');
+      const placasMap = JSON.parse(selSector.dataset._placas||'{}');
+      const sector = selSector.value||'';
+      const options = placasMap[sector] || [];
+      setSelectOptions(selPlaca, options);
+      selPlaca.disabled = options.length===0;
+      selPlaca.value = '';
+      if (inputJefe) inputJefe.value = '';
+    }
+    function handlePlacaChange(){
+      const selPlaca = document.getElementById('placa');
+      const inputJefe = document.getElementById('jefe');
+      const jefesMap = JSON.parse(selPlaca.dataset._jefes||'{}');
+      const jefe = jefesMap[selPlaca.value||''] || '';
+      if (inputJefe) inputJefe.value = jefe;
+    }
     function showToast(msg='Hecho'){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._timer); showToast._timer=setTimeout(()=>{t.style.display='none'},2500); }
     function setBusy(isBusy){ document.querySelectorAll('button').forEach(b=>b.disabled=!!isBusy); }
 
@@ -303,7 +360,7 @@
       return { pageSize:'LETTER', pageMargins:[36,36,36,36], content:[page1,page2,page3], styles:{brand:{fontSize:18,bold:true},tTitulo:{fontSize:14,bold:true},mLbl:{bold:true},lbl:{bold:true},tCampos:{fontSize:10},tSub:{fontSize:12,bold:true},fotoLbl:{fontSize:9,italics:true,color:'#444'}}, defaultStyle:{fontSize:10} };
     }
 
-    function getFormData(){ const $=id=>document.getElementById(id); return { Sector:trimAny($('sector').value||$('sector_lista').value), Placa:trimUpper($('placa').value), Proceso:trimAny($('proceso').value), Nombre:trimAny($('nombre').value), Identidad:trimAny($('identidad').value), TotalGastado:trimAny($('total').value), LitrosConsumidos:trimAny($('litros').value), MotivoDelLlenado:trimAny($('motivo').value), Fecha:trimAny($('fecha').value), HorasDelViaje:trimAny($('horas').value), KmActual:trimAny($('km').value), NumeroFactura:trimAny($('factura').value), NombreComercio:trimAny($('nombre_comercio').value), JefeInmediato:trimAny(($('jefe').value)||'') }; }
+    function getFormData(){ const $=id=>document.getElementById(id); return { Sector:trimAny(($('sector')?.value)||($('sector_lista')?.value)||''), Placa:trimUpper($('placa').value), Proceso:trimAny($('proceso').value), Nombre:trimAny($('nombre').value), Identidad:trimAny($('identidad').value), TotalGastado:trimAny($('total').value), LitrosConsumidos:trimAny($('litros').value), MotivoDelLlenado:trimAny($('motivo').value), Fecha:trimAny($('fecha').value), HorasDelViaje:trimAny($('horas').value), KmActual:trimAny($('km').value), NumeroFactura:trimAny($('factura').value), NombreComercio:trimAny($('nombre_comercio').value), JefeInmediato:trimAny(($('jefe').value)||'') }; }
 
     function waitForPdfMake(timeout=12000){ return new Promise((resolve,reject)=>{ const t0=Date.now(); (function check(){ if(window.pdfMake && typeof window.pdfMake.createPdf==='function') return resolve(window.pdfMake); if(Date.now()-t0>timeout) return reject(new Error('pdfMake no cargó')); setTimeout(check,30); })(); }); }
 
@@ -380,14 +437,28 @@
 
     async function postJSONWithRetry(url,payload,retries=1,timeoutMs=10000){ const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),timeoutMs); try{ const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal}); clearTimeout(t); if(!res.ok) throw new Error('HTTP '+res.status); const json=await res.json().catch(()=>({status:'OK'})); if(json.status&&json.status!=='OK') throw new Error(json.message||'Error lógico'); return json; }catch(e){ clearTimeout(t); if(retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs); throw e; } }
 
-    async function enviarReporte(){ if(!validateForm()){ showToast('Completa los campos requeridos'); return; } setBusy(true); try{ await waitForPdfMake(); const data=getFormData(); const dd=buildDocDefinition(data,ImageState); const filename=((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf').replace(/\s+/g,'_'); await new Promise((resolve,reject)=>{ pdfMake.createPdf(dd).getBase64(async(b64)=>{ try{ await postJSONWithRetry('/api/guardar',{...data,pdf:b64,filename},2,12000); resolve(); } catch(err){ reject(err); } }); }); pdfMake.createPdf(dd).download(filename); renderPdfPreview(dd); showToast('Información enviada correctamente'); } catch(e){ alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally { setBusy(false); } }
+    async function verificarDuplicado(placa, fecha, factura){
+      try{
+        const res = await fetch(urlGuardarReporte, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ validarDuplicado: true, Placa: placa, Fecha: fecha, NumeroFactura: factura })
+        });
+        const json = await res.json().catch(()=>({}));
+        return !!(json && (json.duplicado===true || json.status==='DUPLICADO'));
+      }catch(e){ return false; }
+    }
+
+    async function enviarReporte(){ if(!validateForm()){ showToast('Completa los campos requeridos'); return; } setBusy(true); try{ await waitForPdfMake(); const data=getFormData(); const duplicado = await verificarDuplicado(data.Placa, data.Fecha, data.NumeroFactura); if (duplicado) { alert('Ya existe un reporte con esa Placa, Fecha y Número de factura.'); setBusy(false); return; } const dd=buildDocDefinition(data,ImageState); const filename=((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf').replace(/\s+/g,'_'); await new Promise((resolve,reject)=>{ pdfMake.createPdf(dd).getBase64(async(b64)=>{ try{ await postJSONWithRetry(urlGuardarReporte,{...data,pdf:b64,filename},2,12000); resolve(); } catch(err){ reject(err); } }); }); pdfMake.createPdf(dd).download(filename); renderPdfPreview(dd); showToast('Información enviada correctamente'); } catch(e){ alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally { setBusy(false); } }
 
     document.getElementById('btnPreview')?.addEventListener('click',schedulePreview);
     document.getElementById('btnEnviar')?.addEventListener('click',enviarReporte);
-    ;['sector','sector_lista','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(id=>document.getElementById(id)?.addEventListener('change',schedulePreview));
+    document.getElementById('sector')?.addEventListener('change', ()=>{ handleSectorChange(); schedulePreview(); });
+    document.getElementById('placa')?.addEventListener('change', ()=>{ handlePlacaChange(); schedulePreview(); });
+    ;['sector','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(id=>document.getElementById(id)?.addEventListener('change',schedulePreview));
 
     window.addEventListener('DOMContentLoaded',()=>{ const qp=new URLSearchParams(location.search); if(qp.get('test')==='1'){ /* reserved */ } });
-    window.addEventListener('load', async ()=>{ try{ await waitForPdfMake(); document.getElementById('btnPreview').disabled=false; document.getElementById('btnEnviar').disabled=false; }catch(e){} });
+    window.addEventListener('load', async ()=>{ try{ await waitForPdfMake(); await cargarCatalogos(); document.getElementById('btnPreview').disabled=false; document.getElementById('btnEnviar').disabled=false; }catch(e){} });
     window.addEventListener('beforeunload',()=>{ if(lastBlobUrl) URL.revokeObjectURL(lastBlobUrl); });
   </script>
 </body>
