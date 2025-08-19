@@ -469,7 +469,8 @@
       } finally { setBusy(false); } }
 
     document.getElementById('btnPreview')?.addEventListener('click',schedulePreview);
-    document.getElementById('btnEnviar')?.addEventListener('click',enviarReporte);
+    document.getElementById('btnEnviar')?.addEventListener('click', (ev)=>{ if (typeof window.enviarReporte === 'function') { window.enviarReporte(ev); } });
+    if (typeof window !== 'undefined' && typeof enviarReporte === 'function') { window.enviarReporte = enviarReporte; }
     document.getElementById('sector')?.addEventListener('change', ()=>{ handleSectorChange(); schedulePreview(); });
     document.getElementById('placa')?.addEventListener('change', ()=>{ handlePlacaChange(); schedulePreview(); });
     ;['sector','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(id=>document.getElementById(id)?.addEventListener('change',schedulePreview));
@@ -477,6 +478,19 @@
     window.addEventListener('DOMContentLoaded',()=>{ const qp=new URLSearchParams(location.search); if(qp.get('test')==='1'){ /* reserved */ } });
     window.addEventListener('load', async ()=>{ try{ await waitForPdfMake(); await cargarCatalogos(); document.getElementById('btnPreview').disabled=false; document.getElementById('btnEnviar').disabled=false; }catch(e){} });
     window.addEventListener('beforeunload',()=>{ if(lastBlobUrl) URL.revokeObjectURL(lastBlobUrl); });
+  if (typeof enviarReporte !== 'function') {
+      window.enviarReporte = async ()=>{
+        try{
+          await waitForPdfMake();
+          const data = getFormData();
+          const dd = buildDocDefinition(data, ImageState);
+          let filename = (data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf';
+          filename = filename.replace(/ +/g,'_');
+          pdfMake.createPdf(dd).download(filename);
+          renderPdfPreview(dd);
+        }catch(err){ alert('No se pudo inicializar el envío'); }
+      };
+    }
   </script>
 </body>
 </html>
