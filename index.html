@@ -334,15 +334,18 @@
               const wrapW = (wrap ? wrap.clientWidth : 800) - 24;
               for (let p=1; p<=pdf.numPages; p++){
                 const page = await pdf.getPage(p);
-                const viewport = page.getViewport({scale:1});
-                const scale = Math.min(wrapW / viewport.width, 2);
-                const v = page.getViewport({scale: scale});
+                const viewport0 = page.getViewport({scale:1});
+                const cssScale = wrapW / viewport0.width;
+                const v = page.getViewport({scale: cssScale});
+                const dpr = Math.min(window.devicePixelRatio || 1, 3);
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                canvas.width = Math.ceil(v.width);
-                canvas.height = Math.ceil(v.height);
+                canvas.style.width = Math.ceil(v.width) + 'px';
+                canvas.style.height = Math.ceil(v.height) + 'px';
+                canvas.width = Math.ceil(v.width * dpr);
+                canvas.height = Math.ceil(v.height * dpr);
                 canvas.className = 'pdfjs-page';
-                await page.render({canvasContext: ctx, viewport: v}).promise;
+                await page.render({canvasContext: ctx, viewport: v, transform: [dpr,0,0,dpr,0,0]}).promise;
                 jsContainer.appendChild(canvas);
               }
             }).catch(function(){
