@@ -348,7 +348,30 @@
 
     var _previewTimer; function schedulePreview(){ clearTimeout(_previewTimer); _previewTimer=setTimeout(function(){ try{ var data=getFormData(); var dd=buildDocDefinition(data,ImageState); renderPdfPreview(dd); }catch(e){} },250); }
 
-    async function postJSONWithRetry(url,payload,retries,timeoutMs){ retries=retries||0; timeoutMs=timeoutMs||15000; const controller=new AbortController(); const t=setTimeout(function(){controller.abort()},timeoutMs); try{ const res=await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-cache'}, body:JSON.stringify(payload), signal:controller.signal }); clearTimeout(t); if(!res.ok){ const text=await res.text().catch(function(){return ''}); throw new Error('HTTP '+res.status+(text?(' - '+text.slice(0,200)):'')); } const ctype=(res.headers.get('content-type')||'').toLowerCase(); const txt=await res.text(); const json=ctype.indexOf('application/json')>-1?JSON.parse(txt):(function(){ throw new Error('Respuesta no JSON') })(); if(json.status && json.status!=='OK'){ throw new Error(json.message||'Respuesta lógica inválida'); } return json; }catch(e){ clearTimeout(t); const transient=e.name==='AbortError' || e instanceof TypeError; if(transient && retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs); throw e; } }
+    async function postJSONWithRetry(url,payload,retries,timeoutMs){
+      retries = retries || 0; timeoutMs = timeoutMs || 15000;
+      var controller = new AbortController();
+      var t = setTimeout(function(){ controller.abort(); }, timeoutMs);
+      try{
+        var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-cache'}, body: JSON.stringify(payload), signal: controller.signal });
+        clearTimeout(t);
+        if(!res.ok){
+          var txtErr = await res.text().catch(function(){ return ''; });
+          throw new Error('HTTP '+res.status + (txtErr?(' - '+txtErr.slice(0,200)):'') );
+        }
+        var txt = await res.text();
+        var json = null;
+        try { json = JSON.parse(txt); } catch(_){ json = null; }
+        if (payload && payload.validarDuplicado === true && !json) { throw new Error('Respuesta no JSON'); }
+        if (json && json.status && json.status !== 'OK') { throw new Error(json.message || 'Respuesta lógica inválida'); }
+        return json || { status:'OK', raw: txt };
+      }catch(e){
+        clearTimeout(t);
+        var transient = (e.name==='AbortError') || (e instanceof TypeError);
+        if(transient && retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs);
+        throw e;
+      }
+    }
 
     async function cargarCatalogos(){ const selSector=$('sector'); const selPlaca=$('placa'); if(selSector) selSector.disabled=true; if(selPlaca) selPlaca.disabled=true; try{ const res=await fetch(urlCatalogos,{method:'GET',mode:'cors'}); const json=await res.json(); if(Array.isArray(json)){ const setSect=new Set(); const placasPorSector={}; const jefePorSector={}; for(const row of json){ const placa=(row&&row.PLACA?String(row.PLACA).trim():''); const sector=(row&&row.Sector?String(row.Sector).trim():''); const jefe=(row&&row['Jefe inmediato']?String(row['Jefe inmediato']).trim():''); if(!placa||!sector) continue; setSect.add(sector); (placasPorSector[sector]=placasPorSector[sector]||[]).push(placa); if(jefe && !jefePorSector[sector]) jefePorSector[sector]=jefe; } Catalogos.sectores=Array.from(setSect).sort(); Catalogos.placasPorSector=placasPorSector; Catalogos.jefePorSector=jefePorSector; setSelectOptions(selSector,Catalogos.sectores,'Selecciona…'); if(selSector) selSector.disabled=false; } }catch(e){ console.error('Catálogos:',e); } }
 
@@ -364,11 +387,13 @@
         await waitForPdfMake();
         data = getFormData();
         dd   = buildDocDefinition(data, ImageState);
-        dedupeKey = ((data.Placa||'').trim().toUpperCase()+ '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
-        filename = ((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf')
-          .replace(/\s+/g,'_').replace(/[^-_.a-zA-Z0-9]/g,'');
+        dedupeKey = ((data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
+        filename = ((data.Sector||'sector') + '_' + (data.Fecha||'fecha') + '_' + (data.NumeroFactura||'factura') + '.pdf')
+          .replace(/\s+/g, '_')
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^A-Za-z0-9._-]/g, '');
 
-        try { pdfMake.createPdf(dd).download(filename); } catch(_) {}
+        try { pdfMake.createPdf(dd).download(filename); } catch (e) {}
 
         setTimeout(async function(){
           try {
@@ -377,7 +402,7 @@
             try {
               const ver = await postJSONWithRetry(
                 urlGuardarReporte,
-                { validarDuplicado:true, Placa:data.Placa, Fecha:data.Fecha, NumeroFactura:data.NumeroFactura },
+                { validarDuplicado: true, Placa: data.Placa, Fecha: data.Fecha, NumeroFactura: data.NumeroFactura },
                 0,
                 12000
               );
@@ -386,30 +411,50 @@
               } else {
                 alert('Error al guardar el reporte. Inténtalo de nuevo.');
               }
-            } catch (_) {
+            } catch (e2) {
               alert('Error al guardar el reporte. Inténtalo de nuevo.');
             }
           } finally {
-            setBusy(false); isSaving = false;
+            setBusy(false);
+            isSaving = false;
           }
         }, 0);
 
         renderPdfPreview(dd);
       } catch (e) {
-        setBusy(false); isSaving = false;
+        setBusy(false);
+        isSaving = false;
         alert('No se pudo generar el PDF');
       }
     }
 
     async function doSave(dd, data, filename, dedupeKey){
       showProgress('Guardando información...');
-      const b64 = await new Promise(function(resolve,reject){
+      const b64 = await new Promise(function(resolve, reject){
         try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
         catch(err){ reject(err); }
       });
       await postJSONWithRetry(
         urlGuardarReporte,
-        {Sector:data.Sector,Placa:data.Placa,Proceso:data.Proceso,Nombre:data.Nombre,Identidad:data.Identidad,TotalGastado:data.TotalGastado,LitrosConsumidos:data.LitrosConsumidos,MotivoDelLlenado:data.MotivoDelLlenado,Fecha:data.Fecha,HorasDelViaje:data.HorasDelViaje,KmActual:data.KmActual,NombreComercio:data.NombreComercio,NumeroFactura:data.NumeroFactura,JefeInmediato:data.JefeInmediato,pdf:b64,filename:filename,dedupeKey:dedupeKey},
+        {
+          Sector: data.Sector,
+          Placa: data.Placa,
+          Proceso: data.Proceso,
+          Nombre: data.Nombre,
+          Identidad: data.Identidad,
+          TotalGastado: data.TotalGastado,
+          LitrosConsumidos: data.LitrosConsumidos,
+          MotivoDelLlenado: data.MotivoDelLlenado,
+          Fecha: data.Fecha,
+          HorasDelViaje: data.HorasDelViaje,
+          KmActual: data.KmActual,
+          NombreComercio: data.NombreComercio,
+          NumeroFactura: data.NumeroFactura,
+          JefeInmediato: data.JefeInmediato,
+          pdf: b64,
+          filename: filename,
+          dedupeKey: dedupeKey
+        },
         0,
         20000
       );
