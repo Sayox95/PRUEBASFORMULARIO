@@ -1,66 +1,455 @@
-// functions/api/guardar.js
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reporte de Gastos de Combustible</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+  <script defer src="https://unpkg.com/blueimp-load-image/js/load-image.all.min.js"></script>
+  <style>
+    :root{--space:clamp(.75rem,2.5vw,1rem);--space-lg:clamp(1rem,3.5vw,1.25rem);--radius:12px;--muted:#c9d3e0;--text:#eaf0f8;--primary:#4c9ffe;--danger:#ff5d7a}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Roboto,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);background:#0b1020;padding:var(--space)}
+    header{max-width:1024px;margin:0 auto var(--space-lg)}
+    h1{font-size:clamp(1.25rem,3.5vw,1.75rem);margin:0 0 .25rem}
+    p.sub{color:var(--muted);margin:0}
+    .app{max-width:1024px;margin:0 auto;display:grid;gap:var(--space-lg)}
+    .card{background:#0f172a;border:1px solid #2a3a5a;border-radius:var(--radius);padding:var(--space-lg)}
+    .grid{display:grid;gap:var(--space)}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    @media (max-width:900px){.grid.cols-3{grid-template-columns:1fr}}
+    @media (max-width:700px){.grid.cols-2{grid-template-columns:1fr}}
+    label{font-weight:600;display:block;margin-bottom:.35rem}
+    input,select,textarea,button{width:100%;font-size:clamp(16px,2.6vw,18px);color:var(--text);background:#0f1525;border:1px solid #223052;border-radius:.75rem;padding:.85rem 1rem;outline:none}
+    input::placeholder,textarea::placeholder{color:#8aa0bc}
+    input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+    select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 20px) calc(1.1em),calc(100% - 15px) calc(1.1em);background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+    .actions{display:flex;gap:.75rem;flex-wrap:wrap}
+    .btn{cursor:pointer;border-radius:999px;padding:.9rem 1.25rem;border:1px solid #2d3b5a;font-weight:600;background:#0b1222}
+    .btn.primary{background:#225ad6;color:#eaf0f8;border-color:#1c4bb3}
+    .btn.ok{background:#0fa86b;border-color:#118a59}
+    .btn.danger{background:#ff476a;border-color:#e33e5d}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .error{color:var(--danger);font-size:.9rem;margin-top:.25rem;min-height:1.1em}
+    .previewWrap{border-radius:var(--radius);overflow:clip;border:1px solid #213154}
+    #previewFrame{width:100%;height:min(75vh,900px);display:block;border:0;background:#0a0f1e}
+    #previewFallback{padding:var(--space)}
+    #pdfJsContainer{background:#f4f5f7; padding:12px; display:block;}
+    .pdfjs-page{display:block;margin:0 auto 12px;max-width:100%;height:auto;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}
+    .thumbs{display:grid;gap:var(--space);grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+    .thumb{border:1px dashed #335084;border-radius:.75rem;padding:.5rem;background:#0f172a;min-height:160px;display:grid;place-items:center}
+    .thumb img{max-width:100%;height:auto;object-fit:contain;display:block}
+    .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f2a1f;border:1px solid #1c7d57;color:#c8ffe7;padding:.85rem 1rem;border-radius:.75rem;box-shadow:0 10px 20px rgba(0,0,0,.35);display:none;z-index:50}
+    @media print{@page{size:letter;margin:1.27cm}body{background:#fff;color:#000}.no-print{display:none !important}}
+  </style>
+</head>
+<body>
+  <header class="no-print">
+    <h1>Reporte de Gastos de Combustible</h1>
+    <p class="sub">Completa el formulario, previsualiza el PDF y envíalo. Compatible con móvil.</p>
+  </header>
+  <main class="app">
+    <section class="card" aria-labelledby="formTitle">
+      <h2 id="formTitle" style="margin-top:0">Formulario</h2>
+      <form id="form" novalidate class="grid">
+        <div class="grid cols-3">
+          <div>
+            <label for="sector">Sector</label>
+            <select id="sector" name="sector" required disabled>
+              <option value="">Cargando…</option>
+            </select>
+            <div class="error" id="err_sector"></div>
+          </div>
+          <div>
+            <label for="proceso">Proceso</label>
+            <input id="proceso" name="proceso" placeholder="Ej. Recolección" required />
+            <div class="error" id="err_proceso"></div>
+          </div>
+          <div>
+            <label for="placa">Placa</label>
+            <select id="placa" name="placa" required disabled>
+              <option value="">Selecciona…</option>
+            </select>
+            <div class="error" id="err_placa"></div>
+          </div>
+        </div>
+        <div class="grid cols-3">
+          <div>
+            <label for="nombre">Nombre</label>
+            <input id="nombre" name="nombre" placeholder="Nombre completo" required />
+            <div class="error" id="err_nombre"></div>
+          </div>
+          <div>
+            <label for="identidad">Identidad</label>
+            <input id="identidad" name="identidad" placeholder="0000-0000-00000" required pattern="\d{4}-\d{4}-\d{5}" />
+            <div class="error" id="err_identidad"></div>
+          </div>
+          <div>
+            <label for="jefe">Jefe inmediato</label>
+            <input id="jefe" name="jefe" placeholder="Nombre jefe" readonly />
+            <div class="error" id="err_jefe"></div>
+          </div>
+        </div>
+        <div class="grid cols-3">
+          <div>
+            <label for="fecha">Fecha</label>
+            <input id="fecha" name="fecha" type="date" required />
+            <div class="error" id="err_fecha"></div>
+          </div>
+          <div>
+            <label for="horas">Horas del viaje</label>
+            <input id="horas" name="horas" type="number" min="0" step="0.1" required />
+            <div class="error" id="err_horas"></div>
+          </div>
+          <div>
+            <label for="km">Km actual</label>
+            <input id="km" name="km" type="number" min="0" step="1" required />
+            <div class="error" id="err_km"></div>
+          </div>
+        </div>
+        <div class="grid cols-3">
+          <div>
+            <label for="total">Total gastado (moneda)</label>
+            <input id="total" name="total" type="number" min="0" step="0.01" required />
+            <div class="error" id="err_total"></div>
+          </div>
+          <div>
+            <label for="litros">Litros consumidos</label>
+            <input id="litros" name="litros" type="number" min="0" step="0.01" required />
+            <div class="error" id="err_litros"></div>
+          </div>
+          <div>
+            <label for="motivo">Motivo del llenado</label>
+            <input id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required />
+            <div class="error" id="err_motivo"></div>
+          </div>
+        </div>
+        <div class="grid cols-3">
+          <div>
+            <label for="factura">Número de factura</label>
+            <input id="factura" name="factura" required />
+            <div class="error" id="err_factura"></div>
+          </div>
+          <div>
+            <label for="nombre_comercio">Nombre del comercio</label>
+            <input id="nombre_comercio" name="nombre_comercio" required />
+            <div class="error" id="err_nombre_comercio"></div>
+          </div>
+          <div>
+            <label for="sector_lista">Sector (lista opcional)</label>
+            <select id="sector_lista" name="sector_lista">
+              <option value="">Selecciona…</option>
+              <option>Norte</option>
+              <option>Sur</option>
+              <option>Este</option>
+              <option>Oeste</option>
+            </select>
+          </div>
+        </div>
+        <hr style="border-color:#223052;opacity:.5" />
+        <div class="grid cols-3">
+          <div>
+            <label for="foto_tablero_antes">Foto tablero antes</label>
+            <input id="foto_tablero_antes" type="file" accept="image/*" capture="environment" required />
+            <div class="error" id="err_foto_tablero_antes"></div>
+          </div>
+          <div>
+            <label for="foto_bomba">Foto bomba/contador</label>
+            <input id="foto_bomba" type="file" accept="image/*" capture="environment" required />
+            <div class="error" id="err_foto_bomba"></div>
+          </div>
+          <div>
+            <label for="foto_despues">Foto tablero después</label>
+            <input id="foto_despues" type="file" accept="image/*" capture="environment" required />
+            <div class="error" id="err_foto_despues"></div>
+          </div>
+        </div>
+        <div class="grid cols-3">
+          <div>
+            <label for="foto_bomba_llenado">Foto bomba llenado</label>
+            <input id="foto_bomba_llenado" type="file" accept="image/*" capture="environment" required />
+            <div class="error" id="err_foto_bomba_llenado"></div>
+          </div>
+          <div>
+            <label for="foto_frontal">Foto frontal vehículo</label>
+            <input id="foto_frontal" type="file" accept="image/*" capture="environment" required />
+            <div class="error" id="err_foto_frontal"></div>
+          </div>
+          <div>
+            <label for="foto_factura">Foto factura</label>
+            <input id="foto_factura" type="file" accept="image/*" capture="environment" required />
+            <div class="error" id="err_foto_factura"></div>
+          </div>
+        </div>
+        <div class="thumbs">
+          <div class="thumb" id="preview_foto_tablero_antes"><span>Preview tablero antes</span></div>
+          <div class="thumb" id="preview_foto_bomba"><span>Preview bomba</span></div>
+          <div class="thumb" id="preview_foto_despues"><span>Preview tablero después</span></div>
+          <div class="thumb" id="preview_foto_bomba_llenado"><span>Preview bomba llenado</span></div>
+          <div class="thumb" id="preview_foto_frontal"><span>Preview frontal</span></div>
+          <div class="thumb" id="preview_foto_factura"><span>Preview factura</span></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" id="btnPreview" disabled>Generar vista previa</button>
+          <button type="button" class="btn primary" id="btnEnviar" disabled>Enviar y descargar PDF</button>
+          <button type="reset" class="btn danger">Limpiar</button>
+        </div>
+      </form>
+    </section>
 
-/**
- * Preflight OPTIONS para habilitar CORS
- */
-export async function onRequestOptions({ request }) {
-  // En lugar de '*' usamos el Origin real para maximizar compatibilidad
-  const origin = request.headers.get('Origin') || '*';
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      // quitamos Access-Control-Allow-Credentials si no usamos cookies
+    <section class="card no-print" aria-labelledby="prevTitle">
+      <h2 id="prevTitle" style="margin-top:0">Vista previa del PDF</h2>
+      <div class="previewWrap">
+        <iframe id="previewFrame" title="Vista previa del PDF"></iframe>
+        <div id="pdfJsContainer" hidden></div>
+        <div id="previewFallback" hidden>
+          <p>Tu navegador no puede mostrar el PDF embebido.</p>
+          <div class="actions">
+            <button id="btnAbrirPdf" class="btn">Abrir</button>
+            <a id="linkDescargarPdf" class="btn ok" download>Descargar PDF</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">Listo</div>
+
+  <script>
+    const ImageState = {};
+    const urlGuardarReporte = '/api/guardar';
+    const Catalogos = { sectores: [], placasPorSector: {}, jefePorSector: {} };
+    const urlCatalogos = 'https://script.google.com/macros/s/AKfycbxp2yVp4hF-t9f2LdU9NhZxVt6RwXyL3uKrKzXk4a_l4na2Rkd1LZMB02pEJeRQ_eCF/exec';
+    function setSelectOptions(sel, arr, placeholder='Selecciona…'){
+      if(!sel) return;
+      const opts = ['<option value="">'+placeholder+'</option>'].concat((arr||[]).map(v=>'<option>'+String(v)+'</option>'));
+      sel.innerHTML = opts.join('');
     }
-  });
-}
+    async function cargarCatalogos(){
+      const selSector = document.getElementById('sector');
+      const selPlaca = document.getElementById('placa');
+      if (selSector) selSector.disabled = true;
+      if (selPlaca) selPlaca.disabled = true;
+      try{
+        const res = await fetch(urlCatalogos, { method: 'GET', mode: 'cors' });
+        const json = await res.json();
+        if (Array.isArray(json)){
+          const setSect = new Set();
+          const placasPorSector = {};
+          const jefePorSector = {};
+          for (const row of json){
+            const placa = (row && row.PLACA ? String(row.PLACA).trim() : '');
+            const sector = (row && row.Sector ? String(row.Sector).trim() : '');
+            const jefe = (row && row['Jefe inmediato'] ? String(row['Jefe inmediato']).trim() : '');
+            if (!placa || !sector) continue;
+            setSect.add(sector);
+            (placasPorSector[sector] = placasPorSector[sector] || []).push(placa);
+            if (jefe && !jefePorSector[sector]) jefePorSector[sector] = jefe;
+          }
+          Catalogos.sectores = Array.from(setSect).sort();
+          Catalogos.placasPorSector = placasPorSector;
+          Catalogos.jefePorSector = jefePorSector;
+          setSelectOptions(selSector, Catalogos.sectores, 'Selecciona…');
+          if (selSector) selSector.disabled = false;
+        }
+      }catch(e){ console.error('Catálogos:', e); }
+    }
+    function onSectorChange(){
+      const selSector = document.getElementById('sector');
+      const selPlaca = document.getElementById('placa');
+      const jefeInput = document.getElementById('jefe');
+      const sector = selSector ? selSector.value : '';
+      const placas = (Catalogos.placasPorSector[sector] || []).slice().sort();
+      setSelectOptions(selPlaca, placas, 'Selecciona…');
+      if (selPlaca) selPlaca.disabled = placas.length===0;
+      if (jefeInput) jefeInput.value = Catalogos.jefePorSector[sector] || '';
+    }
+    let lastBlobUrl = null;
 
-/**
- * POST: reenvía el JSON al Apps Script y devuelve su respuesta
- */
-export async function onRequestPost({ request }) {
-  const origin = request.headers.get('Origin') || '*';
-  const bodyText = await request.text();
+    function showToast(msg='Hecho'){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._timer); showToast._timer=setTimeout(()=>{t.style.display='none'},2500); }
+    function setBusy(isBusy){ document.querySelectorAll('button').forEach(b=>b.disabled=!!isBusy); }
 
-  // Para depurar:
-  console.log('📤 Proxy body:', bodyText);
+    function pdfEmbedPodriaFallar(){
+      const ua = navigator.userAgent || navigator.vendor || '';
+      const iOS = /iPad|iPhone|iPod/i.test(ua);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      return (iOS && isSafari) || isMobile;
+    }
 
-  let resp;
-  try {
-    resp = await fetch(
-      "https://script.google.com/macros/s/AKfycbzvgP22GVS1qTADoa6Ifk5rwOEbd_GStWetQRbVpFtvQduYgW9o1gkSLb9a-6l4v8NIMQ/exec",
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: bodyText,
+    function trimUpper(v){ return (v||'').trim().toUpperCase(); }
+    function trimAny(v){ return (v||'').trim(); }
+    function showError(input, text){ const e=document.getElementById('err_'+input.id); if(e) e.textContent=text||''; }
+
+    function validateForm(){
+      let ok=true;
+      document.querySelectorAll('#form [required]').forEach(inp=>{ if(!inp.checkValidity()){ ok=false; showError(inp, inp.validationMessage); } else { showError(inp,''); } });
+      const fileIds=['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'];
+      for(const id of fileIds){ const el=document.getElementById(id); if(!el.files||!el.files[0]){ ok=false; showError(el,'Requerido'); continue; } const file=el.files[0]; const isRecent=(Date.now()-file.lastModified)<=48*3600*1000; if(!isRecent){ ok=false; showError(el,'La foto debe ser ≤ 48 horas'); } }
+      return ok;
+    }
+
+    const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg','image/png','image/webp']);
+    function readFileAsDataURL(file){ return new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=()=>reject(fr.error||new Error('FileReader')); fr.readAsDataURL(file); }); }
+    function drawToCanvas(imgLike,maxW,maxH){ const iw=imgLike.naturalWidth||imgLike.width; const ih=imgLike.naturalHeight||imgLike.height; const r=Math.min(maxW/iw,maxH/ih,1); const tw=Math.max(1,Math.round(iw*r)); const th=Math.max(1,Math.round(ih*r)); const c=document.createElement('canvas'); c.width=tw; c.height=th; const ctx=c.getContext('2d'); ctx.drawImage(imgLike,0,0,tw,th); return c; }
+    async function fileToOptimizedBase64(file,maxW=1600,maxH=1600,quality=0.7){ if(!file) throw new Error('Archivo inválido'); if(!SUPPORTED_IMAGE_TYPES.has(file.type)){ const err=new Error('Formato no soportado'); err.code='UNSUPPORTED_FORMAT'; err.type=file.type||'unknown'; throw err; } const dataUrl=await readFileAsDataURL(file); const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=dataUrl; }); const canvas=drawToCanvas(img,maxW,maxH); return canvas.toDataURL('image/jpeg',quality); }
+
+    async function handleImageInput(inputId){ const input=document.getElementById(inputId); const file=input?.files?.[0]; if(!file){ ImageState[inputId]=null; return; } const isRecent=(Date.now()-file.lastModified)<=48*3600*1000; if(!isRecent){ showError(input,'La foto debe ser ≤ 48 horas'); input.value=''; return; } try{ const optimized=await fileToOptimizedBase64(file,1600,1600,0.7); ImageState[inputId]=optimized; requestAnimationFrame(()=>{ const prev=document.getElementById('preview_'+inputId); if(prev) prev.innerHTML='<img alt="" src="'+optimized+'">'; }); }catch(err){ if(err && err.code==='UNSUPPORTED_FORMAT') showError(input,'Formato no soportado ('+err.type+'). Usa JPG/PNG/WebP.'); else showError(input,'No se pudo leer la imagen'); } }
+    ;['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(id=>{ const el=document.getElementById(id); el?.addEventListener('change',()=>handleImageInput(id),{passive:true}); });
+
+    function buildDocDefinition(data,img){
+      const hasLogo=!!img.logo;
+      const header={
+        columns:[
+          {width:120,alignment:'left',margin:[0,0,10,0],stack:[hasLogo?{image:img.logo,width:110}:{text:'UTCD',style:'brand'}]},
+          {width:'*',alignment:'center',stack:[{text:'DETALLE DE LA FACTURA DE COMBUSTIBLE',style:'tTitulo'}]},
+          {width:160,table:{widths:['*','*'],body:[[{text:'Código',style:'mLbl',alignment:'center'},{text:'CLS-PAU-F-19',alignment:'center'}],[{text:'Versión',style:'mLbl',alignment:'center'},{text:'1',alignment:'center'}],[{text:'Fecha',style:'mLbl',alignment:'center'},{text:'20/5/2025',alignment:'center'}]]},layout:{paddingLeft:()=>4,paddingRight:()=>4,paddingTop:()=>3,paddingBottom:()=>3}}
+        ],
+        columnGap:10,
+        margin:[0,0,0,6]
+      };
+
+      const infoTable={
+        style:'tCampos',
+        table:{
+          widths:[100,165],
+          heights:(row)=> row===5?110:(row===2||row===10?48:38),
+          body:[
+            [{text:'Nombre Completo',style:'lbl'},data.Nombre||'' ],
+            [{text:'No. Identidad',style:'lbl'},data.Identidad||'' ],
+            [{text:'Firma del Colaborador',style:'lbl'},{text:'', margin:[0,10,0,6]}],
+            [{text:'Tipo de Gestión',style:'lbl'},'Liquidación de gastos de combustible' ],
+            [{text:'Total',style:'lbl'},(data.LitrosConsumidos?(String(data.LitrosConsumidos)+' L'):'') ],
+            [{text:'Motivo del llenado de combustible',style:'lbl'}, { stack: [ {text:'Compra de Combustible al Vehículo', margin:[0,0,0,4]}, {text:['Para Labores de: ',{text:(data.ParaLabores||'')}] , margin:[0,4,0,0]}, {text:(data.MotivoDelLlenado||''), margin:[0,4,0,0]}, {text:['Proceso: ',{text:(data.Proceso||'')}], margin:[0,4,0,0]} ] } ],
+            [{text:'Fecha',style:'lbl'},data.Fecha||'' ],
+            [{text:'Placa o VIN',style:'lbl'},data.Placa||'' ],
+            [{text:'Observación',style:'lbl'},{stack:[{text:'SECTOR: '+(data.Sector||'')},{text:'KM: '+(data.KmActual||'')},{text:'FACTURA: '+(data.NumeroFactura||'')}]}],
+            [{text:'Autorizado por Jefe Inmediato',style:'lbl'},(data.JefeInmediato||'') ],
+            [{text:'Firma',style:'lbl'},{text:'', margin:[0,10,0,6]}]
+          ]
+        },
+        layout:{hLineWidth:()=>1,vLineWidth:()=>1,hLineColor:'#000',vLineColor:'#000',paddingLeft:()=>4,paddingRight:()=>4,paddingTop:()=>3,paddingBottom:()=>3}
+      };
+
+      const cuadroFacturaGuia={
+        table:{widths:[230],body:[[{text:'Pegar Factura Original en este Espacio',alignment:'center',italics:true,color:'#666'}]]},
+        layout:{hLineWidth:()=>1,vLineWidth:()=>1,hLineColor:'#000',vLineColor:'#000',paddingLeft:()=>6,paddingRight:()=>6,paddingTop:()=>300,paddingBottom:()=>300},
+        margin:[0,6,10,0]
+      };
+
+      const page1={ stack:[ header, { columns:[ {width:230,stack:[cuadroFacturaGuia]}, {width:'*',stack:[infoTable],margin:[0,6,12,0]} ], columnGap:26 } ], pageBreak:'after' };
+
+      function fotoCard(titulo,phKey){ return { stack:[ {text:titulo,style:'fotoLbl',alignment:'center',margin:[0,0,0,4]}, (img[phKey]?{image:img[phKey],width:170,alignment:'center'}:{text:'-',color:'#666',alignment:'center',margin:[0,30,0,30]}) ] }; }
+
+      const page2={ stack:[ {text:'FOTOGRAFÍAS',style:'tSub',margin:[0,0,0,8],alignment:'center'}, {columns:[ fotoCard('TABLERO ANTES DE LLENADO','foto_tablero_antes'), fotoCard('BOMBA DE COMBUSTIBLE','foto_bomba'), fotoCard('TABLERO DESPUÉS DE LLENADO','foto_despues') ],columnGap:12,margin:[0,4,0,16]}, {columns:[ fotoCard('BOMBA DE COMBUSTIBLE LLENA','foto_bomba_llenado'), fotoCard('VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO','foto_frontal'), fotoCard('FACTURA','foto_factura') ],columnGap:12} ], pageBreak:'after' };
+
+      const page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],alignment:'center'}, (img['foto_factura']?{image:img['foto_factura'],fit:[510,680],alignment:'center'}:{text:'Sin imagen de factura',alignment:'center',color:'#666'}) ] };
+
+      return { pageSize:'LETTER', pageMargins:[36,36,36,36], content:[page1,page2,page3], styles:{brand:{fontSize:18,bold:true},tTitulo:{fontSize:14,bold:true},mLbl:{bold:true},lbl:{bold:true},tCampos:{fontSize:10},tSub:{fontSize:12,bold:true},fotoLbl:{fontSize:9,italics:true,color:'#444'}}, defaultStyle:{fontSize:10} };
+    }
+
+    function getFormData(){ const $=id=>document.getElementById(id); return { Sector:trimAny($('sector').value||$('sector_lista').value), Placa:trimUpper($('placa').value), Proceso:trimAny($('proceso').value), Nombre:trimAny($('nombre').value), Identidad:trimAny($('identidad').value), TotalGastado:trimAny($('total').value), LitrosConsumidos:trimAny($('litros').value), MotivoDelLlenado:trimAny($('motivo').value), Fecha:trimAny($('fecha').value), HorasDelViaje:trimAny($('horas').value), KmActual:trimAny($('km').value), NumeroFactura:trimAny($('factura').value), NombreComercio:trimAny($('nombre_comercio').value), JefeInmediato:trimAny(($('jefe').value)||'') }; }
+
+    function waitForPdfMake(timeout=12000){ return new Promise((resolve,reject)=>{ const t0=Date.now(); (function check(){ if(window.pdfMake && typeof window.pdfMake.createPdf==='function') return resolve(window.pdfMake); if(Date.now()-t0>timeout) return reject(new Error('pdfMake no cargó')); setTimeout(check,30); })(); }); }
+
+    function base64ToUint8Array(base64){
+      const bin = atob(base64); const len = bin.length; const bytes = new Uint8Array(len);
+      for(let i=0;i<len;i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    function renderPdfPreview(docDefinition){
+      const iframe = document.getElementById('previewFrame');
+      const fb = document.getElementById('previewFallback');
+      const btnAbrir = document.getElementById('btnAbrirPdf');
+      const linkDesc = document.getElementById('linkDescargarPdf');
+      const jsContainer = document.getElementById('pdfJsContainer');
+
+      if (pdfEmbedPodriaFallar()) {
+        window.pdfMake.createPdf(docDefinition).getBase64(function(b64){
+          const hasPdfJs = !!(window.pdfjsLib && window.pdfjsLib.getDocument);
+          if (hasPdfJs) {
+            fb.hidden = true; iframe.style.display = 'none'; jsContainer.hidden = false; jsContainer.innerHTML='';
+            if (window.pdfjsLib.GlobalWorkerOptions) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            const data = base64ToUint8Array(b64);
+            window.pdfjsLib.getDocument({data}).promise.then(async function(pdf){
+              const wrap = document.querySelector('.previewWrap');
+              const wrapW = (wrap ? wrap.clientWidth : 800) - 24;
+              for (let p=1; p<=pdf.numPages; p++){
+                const page = await pdf.getPage(p);
+                const viewportCSS = page.getViewport({scale: 1});
+              const cssScale = (document.querySelector('.previewWrap').clientWidth - 24) / viewportCSS.width;
+              let outputScale = Math.min(window.devicePixelRatio || 1, 3);
+              if (/HONOR|HUAWEI/i.test(navigator.userAgent||'')) { outputScale = Math.min((window.devicePixelRatio||1) * 1.5, 3); }
+              const viewport = page.getViewport({scale: cssScale * outputScale});
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              canvas.width = Math.ceil(viewport.width);
+              canvas.height = Math.ceil(viewport.height);
+              const cssW = Math.round(viewport.width / outputScale);
+              const cssH = Math.round(viewport.height / outputScale);
+              canvas.style.width = cssW + 'px';
+              canvas.style.height = cssH + 'px';
+              canvas.className = 'pdfjs-page';
+              await page.render({canvasContext: ctx, viewport}).promise;
+              jsContainer.appendChild(canvas);
+              }
+            }).catch(function(){
+              const dataUrl = 'data:application/pdf;base64,' + b64;
+              fb.hidden = false; iframe.style.display = 'none'; jsContainer.hidden = true;
+              btnAbrir.onclick = function(){ const w = window.open(dataUrl,'_blank','noopener'); if(!w) window.location.href = dataUrl; };
+              linkDesc.href = dataUrl; linkDesc.download = 'reporte-preview.pdf';
+            });
+          } else {
+            const dataUrl = 'data:application/pdf;base64,' + b64;
+            fb.hidden = false; iframe.style.display = 'none'; jsContainer.hidden = true;
+            btnAbrir.onclick = function(){ const w = window.open(dataUrl,'_blank','noopener'); if(!w) window.location.href = dataUrl; };
+            linkDesc.href = dataUrl; linkDesc.download = 'reporte-preview.pdf';
+          }
+        });
+        return;
       }
-    );
-  } catch (e) {
-    console.error('⚠️ Error conectando a Apps Script:', e);
-    return new Response(JSON.stringify({
-      status: 'ERROR',
-      message: 'No se pudo conectar con Apps Script'
-    }), {
-      status: 502,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Content-Type': 'application/json'
-      }
+
+      window.pdfMake.createPdf(docDefinition).getBlob(function(blob){
+        if (lastBlobUrl) { URL.revokeObjectURL(lastBlobUrl); lastBlobUrl = null; }
+        const blobUrl = URL.createObjectURL(blob);
+        lastBlobUrl = blobUrl;
+        fb.hidden = true; jsContainer.hidden = true; iframe.style.display = 'block';
+        iframe.src = blobUrl;
+      });
+    }
+
+    let _previewTimer; function schedulePreview(){ clearTimeout(_previewTimer); _previewTimer=setTimeout(()=>{ try{ const data=getFormData(); const dd=buildDocDefinition(data,ImageState); renderPdfPreview(dd); }catch(e){} },250); }
+
+    async function postJSONWithRetry(url,payload,retries=1,timeoutMs=10000){ const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),timeoutMs); try{ const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal}); clearTimeout(t); if(!res.ok) throw new Error('HTTP '+res.status); const json=await res.json().catch(()=>({status:'OK'})); if(json.status&&json.status!=='OK') throw new Error(json.message||'Error lógico'); return json; }catch(e){ clearTimeout(t); if(retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs); throw e; } }
+
+    async function enviarReporte(){ if(!validateForm()){ showToast('Completa los campos requeridos'); return; } setBusy(true); try{ await waitForPdfMake(); const data=getFormData(); const dd=buildDocDefinition(data,ImageState); const filename=((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf').replace(/\s+/g,'_'); await new Promise((resolve,reject)=>{ pdfMake.createPdf(dd).getBase64(async(b64)=>{ try{ await postJSONWithRetry(urlGuardarReporte,{...data,pdf:b64,filename},2,12000); resolve(); } catch(err){ reject(err); } }); }); pdfMake.createPdf(dd).download(filename); renderPdfPreview(dd); showToast('Información enviada correctamente'); } catch(e){ alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally { setBusy(false); } }
+
+    document.getElementById('btnPreview')?.addEventListener('click',schedulePreview);
+    document.getElementById('btnEnviar')?.addEventListener('click',enviarReporte);
+    ;['sector','sector_lista','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(id=>document.getElementById(id)?.addEventListener('change',schedulePreview));
+
+    window.addEventListener('DOMContentLoaded',()=>{ const qp=new URLSearchParams(location.search); if(qp.get('test')==='1'){ /* reserved */ } });
+    window.addEventListener('load', async ()=>{
+      try{
+        await waitForPdfMake();
+        await cargarCatalogos();
+        const btnPrev = document.getElementById('btnPreview');
+        const btnEnv = document.getElementById('btnEnviar');
+        if (btnPrev) btnPrev.disabled=false;
+        if (btnEnv) btnEnv.disabled=false;
+        document.getElementById('sector')?.addEventListener('change', onSectorChange);
+      }catch(e){}
     });
-  }
-
-  const text = await resp.text();
-  console.log('📥 Respuesta Apps Script:', resp.status, text);
-
-  // Si el script devolvió HTML por algún error de despliegue, lo verás aquí
-  // (en la consola remote de Safari).  
-  return new Response(text, {
-    status: resp.status,
-    headers: {
-      'Access-Control-Allow-Origin': origin,
-      'Content-Type': 'application/json'
-    }
-  });
-}
+    window.addEventListener('beforeunload',()=>{ if(lastBlobUrl) URL.revokeObjectURL(lastBlobUrl); });
+  </script>
+</body>
+</html>
