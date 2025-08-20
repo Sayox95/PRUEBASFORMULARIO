@@ -2,7 +2,7 @@
 
 /**
  * Preflight OPTIONS para habilitar CORS
- */ 
+ */
 export async function onRequestOptions({ request }) {
   // En lugar de '*' usamos el Origin real para maximizar compatibilidad
   const origin = request.headers.get('Origin') || '*';
