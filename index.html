@@ -358,30 +358,62 @@
     async function enviarReporte(){
       if(isSaving) return;
       if(!validateForm()){ showToast('Completa los campos requeridos'); return; }
-      isSaving=true; setBusy(true);
+      isSaving = true; setBusy(true);
+      let data, dd, filename, dedupeKey;
       try{
         await waitForPdfMake();
-        var data=getFormData();
-        var dd=buildDocDefinition(data,ImageState);
-        var dedupeKey = ( (data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim() );
-        var filename=(data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf';
-        filename = (filename||'reporte.pdf');
-        filename = filename.split(' ').join('_').replace(/[^-_.a-zA-Z0-9]/g,'');
+        data = getFormData();
+        dd   = buildDocDefinition(data, ImageState);
+        dedupeKey = ((data.Placa||'').trim().toUpperCase()+ '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
+        filename = ((data.Sector||'sector')+'_'+(data.Fecha||'fecha')+'_'+(data.NumeroFactura||'factura')+'.pdf')
+          .replace(/\s+/g,'_').replace(/[^-_.a-zA-Z0-9]/g,'');
 
-        showProgress('Guardando información...');
-        const b64 = await new Promise(function(resolve,reject){ pdfMake.createPdf(dd).getBase64(function(val){ try{ resolve(val); }catch(err){ reject(err); } }); });
-        await postJSONWithRetry(urlGuardarReporte,{Sector:data.Sector,Placa:data.Placa,Proceso:data.Proceso,Nombre:data.Nombre,Identidad:data.Identidad,TotalGastado:data.TotalGastado,LitrosConsumidos:data.LitrosConsumidos,MotivoDelLlenado:data.MotivoDelLlenado,Fecha:data.Fecha,HorasDelViaje:data.HorasDelViaje,KmActual:data.KmActual,NombreComercio:data.NombreComercio,NumeroFactura:data.NumeroFactura,JefeInmediato:data.JefeInmediato,pdf:b64,filename:filename,dedupeKey:dedupeKey},0,20000);
-        hideProgress('Información enviada correctamente');
+        try { pdfMake.createPdf(dd).download(filename); } catch(_) {}
 
-        pdfMake.createPdf(dd).download(filename);
+        setTimeout(async function(){
+          try {
+            await doSave(dd, data, filename, dedupeKey);
+          } catch (e) {
+            try {
+              const ver = await postJSONWithRetry(
+                urlGuardarReporte,
+                { validarDuplicado:true, Placa:data.Placa, Fecha:data.Fecha, NumeroFactura:data.NumeroFactura },
+                0,
+                12000
+              );
+              if (ver && ver.duplicado === true) {
+                showToast('Envío confirmado en servidor');
+              } else {
+                alert('Error al guardar el reporte. Inténtalo de nuevo.');
+              }
+            } catch (_) {
+              alert('Error al guardar el reporte. Inténtalo de nuevo.');
+            }
+          } finally {
+            setBusy(false); isSaving = false;
+          }
+        }, 0);
+
         renderPdfPreview(dd);
-      }catch(e){
-        hideProgress();
-        alert('Error al guardar el reporte. Inténtalo de nuevo.');
-        console.error(e);
-      }finally{
-        setBusy(false); isSaving=false;
+      } catch (e) {
+        setBusy(false); isSaving = false;
+        alert('No se pudo generar el PDF');
       }
+    }
+
+    async function doSave(dd, data, filename, dedupeKey){
+      showProgress('Guardando información...');
+      const b64 = await new Promise(function(resolve,reject){
+        try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
+        catch(err){ reject(err); }
+      });
+      await postJSONWithRetry(
+        urlGuardarReporte,
+        {Sector:data.Sector,Placa:data.Placa,Proceso:data.Proceso,Nombre:data.Nombre,Identidad:data.Identidad,TotalGastado:data.TotalGastado,LitrosConsumidos:data.LitrosConsumidos,MotivoDelLlenado:data.MotivoDelLlenado,Fecha:data.Fecha,HorasDelViaje:data.HorasDelViaje,KmActual:data.KmActual,NombreComercio:data.NombreComercio,NumeroFactura:data.NumeroFactura,JefeInmediato:data.JefeInmediato,pdf:b64,filename:filename,dedupeKey:dedupeKey},
+        0,
+        20000
+      );
+      hideProgress('Información enviada correctamente');
     }
 
     function attachImageInputs(){ ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',function(){handleImageInput(id)},{passive:true}); }); }
