@@ -19,7 +19,7 @@ export async function onRequestPost({ request, env }) {
   // Usa variable de entorno si quieres (Settings > Environment variables)
   const upstream =
     env.APPS_SCRIPT_POST_URL ||
-    'https://script.google.com/macros/s/AKfycbzvgP22GVS1qTADoa6Ifk5rwOEbd_GStWetQRbVpFtvQduYgW9o1gkSLb9a-6l4v8NIMQ/exec';
+    "https://script.google.com/macros/s/AKfycbzvgP22GVS1qTADoa6Ifk5rwOEbd_GStWetQRbVpFtvQduYgW9o1gkSLb9a-6l4v8NIMQ/exec";
 
   let resp;
   try {
