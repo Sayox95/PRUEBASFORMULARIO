@@ -9,7 +9,7 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script> 
   <script defer src="https://unpkg.com/blueimp-load-image/js/load-image.all.min.js"></script>
   <style>
     :root{--space:clamp(.75rem,2.5vw,1rem);--space-lg:clamp(1rem,3.5vw,1.25rem);--radius:12px;--muted:#c9d3e0;--text:#eaf0f8;--primary:#4c9ffe;--danger:#ff5d7a}
