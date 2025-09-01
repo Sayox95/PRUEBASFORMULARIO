@@ -50,6 +50,22 @@
       .progressBarWrap{width:260px;height:8px;background:#1e2a44;border-radius:999px;overflow:hidden;border:1px solid #2a3a5a}
     .progressBar{height:100%;width:0%;background:#4c9ffe}
   </style>
+
+<!-- === estilos inyectados para validación de factura === -->
+<style id="factura-async-validator-style">
+  .factura-status{font-size:.9rem;font-weight:600;margin-left:.5rem;vertical-align:middle}
+  .factura-status.ok{color:#16a34a}
+  .factura-status.dup{color:#ef4444}
+  .factura-status.loading{color:#64748b;position:relative;padding-left:1.4rem}
+  .factura-status.loading::before{
+    content:"";width:1rem;height:1rem;border-radius:50%;
+    border:.18rem solid #cbd5e1;border-top-color:#334155;
+    position:absolute;left:0;top:50%;transform:translateY(-50%);
+    animation:factura-spin 1s linear infinite;
+  }
+  @keyframes factura-spin{to{transform:translateY(-50%) rotate(360deg);}}
+</style>
+
 </head>
 <body>
   <header class="no-print">
@@ -134,7 +150,7 @@
         </div>
         <div class="grid cols-3">
           <div>
-            <label for="factura">Número de factura <span id="facturaStatus" class="factura-status" aria-live="polite"></span></label>
+            <label for="factura">Número de factura</label>
             <input id="factura" name="factura" required />
             <div class="error" id="err_factura"></div>
           </div>
@@ -362,7 +378,7 @@
         var txt = await res.text();
         var json = null;
         try { json = JSON.parse(txt); } catch(_){ json = null; }
-        if (payload && payload.validarDuplicado === true && !json) { throw new Error('Respuesta no JSON'); }
+        if (payload && payload.validarDuplicado__deshabilitado === true && !json) { throw new Error('Respuesta no JSON'); }
         if (json && json.status && json.status !== 'OK') { throw new Error(json.message || 'Respuesta lógica inválida'); }
         return json || { status:'OK', raw: txt };
       }catch(e){
@@ -402,7 +418,7 @@
             try {
               const ver = await postJSONWithRetry(
                 urlGuardarReporte,
-                { validarDuplicado: true, Placa: data.Placa, Fecha: data.Fecha, NumeroFactura: data.NumeroFactura },
+                { validarDuplicado__deshabilitado: true, Placa: data.Placa, Fecha: data.Fecha, NumeroFactura: data.NumeroFactura },
                 0,
                 12000
               );
@@ -470,220 +486,81 @@
   })();
   </script>
 
-<style>
-.factura-status {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  margin-left: .75rem;
-  font-size: .9rem;
-  font-weight: 600;
-}
-.factura-status.ok    { color: #0b8a3a; }
-.factura-status.warn  { color: #b26a00; }
-.factura-status.err   { color: #b00020; }
-.factura-status.mute  { color: #6b7280; }
-.factura-status .spin {
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  display: inline-block;
-  animation: giro .8s linear infinite;
-  transform: translateY(1px);
-}
-@keyframes giro { to { transform: rotate(360deg) translateY(1px); } }
-</style>
-
-<script>
-const VALIDACION_ENDPOINT = (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte)
-  ? urlGuardarReporte
-  : '/api/guardar';
-
-function debounce(fn, wait){
-  let t; return function(...args){
-    clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait);
-  };
-}
-
-function setFacturaStatus(kind, text, withSpinner=false){
-  const el = document.getElementById('facturaStatus');
-  if(!el) return;
-  el.className = 'factura-status ' + (kind || 'mute');
-  el.innerHTML = (withSpinner ? '<span class="spin" aria-hidden="true"></span>' : '') +
-                 '<span>' + (text || '') + '</span>';
-}
-
-async function postJSONTolerant(url, payload, {timeoutMs=12000, signal}={}){
-  const ctrl = new AbortController();
-  const timer = setTimeout(()=>ctrl.abort(), timeoutMs);
-  let mergedSignal = ctrl.signal;
-  if (signal) {
-    try { mergedSignal = AbortSignal.any([signal, ctrl.signal]); } catch(e) { mergedSignal = ctrl.signal; }
-  }
-  try{
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','Cache-Control':'no-cache'},
-      body: JSON.stringify(payload),
-      signal: mergedSignal
-    });
-    clearTimeout(timer);
-    if(!res.ok) {
-      const txt = await res.text().catch(()=> '');
-      throw new Error('HTTP '+res.status+(txt?(' - '+txt.slice(0,200)):''));
-    }
-    const txt = await res.text();
-    try { return txt ? JSON.parse(txt) : { status:'OK' }; }
-    catch { return { status: 'OK', raw: txt }; }
-  } catch(e){
-    clearTimeout(timer);
-    throw e;
-  }
-}
-
-let facturaCtrl = null;
-
-async function validarNumeroFactura(numero){
-  const val = (numero || '').trim();
-  if(!val){
-    setFacturaStatus('mute','');
-    return;
-  }
-  setFacturaStatus('mute','Validando…', true);
-  if (facturaCtrl) facturaCtrl.abort();
-  facturaCtrl = new AbortController();
-  try{
-    const resp = await postJSONTolerant(
-      VALIDACION_ENDPOINT,
-      { validarDuplicado: true, NumeroFactura: val },
-      { timeoutMs: 15000, signal: facturaCtrl.signal }
-    );
-    let isDup = false;
-    if (resp && typeof resp === 'object') {
-      if ('duplicado' in resp) isDup = !!resp.duplicado;
-      else if (Array.isArray(resp) && resp.length > 0) isDup = true;
-      else if (resp.status === 'DUPLICADO') isDup = true;
-    }
-    if (isDup) {
-      setFacturaStatus('err','Factura duplicada');
-    } else {
-      setFacturaStatus('ok','Factura aceptada');
-    }
-  } catch(e){
-    setFacturaStatus('warn','No se pudo validar ahora');
-  }
-}
-
-function setupValidacionFactura(){
-  const input = document.getElementById('NumeroFactura') || document.getElementById('factura');
-  if(!input) return;
-  const onType = debounce(()=> validarNumeroFactura_v4(input.value), 450);
-  input.addEventListener('input', onType);
-  if (input.value) validarNumeroFactura_v4(input.value);
-}
-
-document.addEventListener('DOMContentLoaded', setupValidacionFactura);
-</script>
-
-
-<script>
-// --- PATCH: asegurar ancla visual para estado de factura ---
-function ensureFacturaStatusAnchor(){
-  var span = document.getElementById('facturaStatus');
-  if (span) return span;
-  var input = document.getElementById('NumeroFactura') || document.getElementById('factura');
-  if (!input) return null;
-
-  // 1) Intentar junto al label asociado
-  var label = document.querySelector('label[for="NumeroFactura"]') || document.querySelector('label[for="factura"]');
-  span = document.createElement('span');
-  span.id = 'facturaStatus';
-  span.className = 'factura-status';
-  span.setAttribute('aria-live', 'polite');
-
-  try {
-    if (label) {
-      label.appendChild(span);
-      return span;
-    }
-  } catch(e){}
-
-  // 2) Si no hay label: intentar antes del input (a la par del título) o justo después
-  try {
-    input.insertAdjacentElement('beforebegin', span);
-    return span;
-  } catch(e){
-    try {
-      input.insertAdjacentElement('afterend', span);
-      return span;
-    } catch(e2){}
-  }
-  return null;
-}
-
-// Sobrescribir setFacturaStatus para asegurar que exista el ancla
+<!-- === script inyectado: validación asíncrona de Número de factura === -->
+<script id="factura-async-validator-script">
 (function(){
-  var _origSet = (typeof setFacturaStatus === 'function') ? setFacturaStatus : null;
-  window.setFacturaStatus = function(kind, text, withSpinner){
-    var el = document.getElementById('facturaStatus') || ensureFacturaStatusAnchor();
-    if(!el) return;
-    el.className = 'factura-status ' + (kind || 'mute');
-    el.innerHTML = (withSpinner ? '<span class="spin" aria-hidden="true"></span>' : '') +
-                   '<span>' + (text || '') + '</span>';
-  };
-})();
-
-// Asegurar creación del ancla tempranamente
-document.addEventListener('DOMContentLoaded', ensureFacturaStatusAnchor);
-</script>
-
-
-<script>
-async function validarNumeroFactura_v4(numero){
-  const val = (numero || '').trim();
-  if(!val){
-    setFacturaStatus('mute','');
-    return;
-  }
-  const placaEl = document.getElementById('Placa') || document.getElementById('placa');
-  const fechaEl = document.getElementById('Fecha') || document.getElementById('fecha');
-  const placaVal = placaEl ? (placaEl.value || '').trim() : '';
-  let fechaVal = fechaEl ? (fechaEl.value || '').trim() : '';
-  if (fechaVal) {
-    var m1 = fechaVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (m1) {
-      var d = m1[1].padStart(2,'0');
-      var m = m1[2].padStart(2,'0');
-      var y = m1[3];
-      fechaVal = y + '-' + m + '-' + d;
-    }
-  }
-  setFacturaStatus('mute','Validando…', true);
-  if (facturaCtrl) facturaCtrl.abort();
-  facturaCtrl = new AbortController();
   try{
-    const resp = await postJSONTolerant(
-      VALIDACION_ENDPOINT,
-      { validarDuplicado: true, NumeroFactura: val, Placa: placaVal, Fecha: fechaVal },
-      { timeoutMs: 15000, signal: facturaCtrl.signal }
-    );
-    let isDup = false;
-    if (resp && typeof resp === 'object') {
-      if ('duplicado' in resp) isDup = !!resp.duplicado;
-      else if (Array.isArray(resp) && resp.length > 0) isDup = true;
-      else if (resp.status === 'DUPLICADO') isDup = true;
+    // Evitar doble inyección
+    if (window.__facturaAsyncValidatorInjected__) return;
+    window.__facturaAsyncValidatorInjected__ = true;
+
+    var input = document.getElementById('factura');
+    if(!input) return;
+
+    // Añadir <span> de estado al lado del label de "Número de factura"
+    var label = document.querySelector('label[for="factura"]');
+    var status = document.getElementById('factura_status');
+    if(!status){
+      status = document.createElement('span');
+      status.id = 'factura_status';
+      status.className = 'factura-status';
+      if(label){
+        label.appendChild(document.createTextNode(' '));
+        label.appendChild(status);
+      }else{
+        // si no hay label, lo ubicamos después del input
+        input.insertAdjacentElement('afterend', status);
+      }
+    }else{
+      status.classList.add('factura-status');
     }
-    if (isDup) {
-      setFacturaStatus('err','Factura duplicada');
-    } else {
-      setFacturaStatus('ok','Factura aceptada');
+
+    function setStatus(cls, text){
+      status.className = 'factura-status' + (cls ? (' ' + cls) : '');
+      status.textContent = text || '';
     }
-  } catch(e){
-    setFacturaStatus('warn','No se pudo validar ahora');
-  }
-}
+
+    // Construir URL del doGet ?leerFacturas=true
+    // Si existe urlGuardarReporte en el scope, lo usamos.
+    var base = (typeof urlGuardarReporte === 'string' && urlGuardarReporte) ? urlGuardarReporte : '';
+    var urlGet = base ? (base + (base.indexOf('?') === -1 ? '?leerFacturas=true' : '&leerFacturas=true'))
+                      : '?leerFacturas=true'; // fallback (el deploy real debería fijar urlGuardarReporte)
+
+    var timer = null;
+    var last = '';
+
+    async function consultar(valor){
+      if(!valor){ setStatus('', ''); return; }
+      setStatus('loading','Validando…');
+      try{
+        var res = await fetch(urlGet, { method: 'GET' });
+        var lista = await res.json();
+        var v = String(valor).trim();
+        var dup = Array.isArray(lista) && lista.some(function(r){
+          var a = (r && (r.NumeroFactura!=null ? String(r.NumeroFactura) : String(r.factura||''))).trim();
+          return a === v;
+        });
+        if(dup){ setStatus('dup','Factura duplicada'); }
+        else{ setStatus('ok','Factura aceptada'); }
+      }catch(e){
+        // en caso de error de red, no bloqueamos el formulario
+        setStatus('', '');
+      }
+    }
+
+    function schedule(){
+      var v = input.value || '';
+      if (v === last) return;
+      last = v;
+      clearTimeout(timer);
+      timer = setTimeout(function(){ consultar(v); }, 500);
+    }
+
+    input.addEventListener('input', schedule, { passive: true });
+    input.addEventListener('blur', function(){ consultar(input.value); }, { passive: true });
+  }catch(_e){}
+})();
 </script>
+
 </body>
 </html>
