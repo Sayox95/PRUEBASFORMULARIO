@@ -485,238 +485,15 @@
   })();
   </script>
 
-<script>
-// ===== Validación en vivo de Número de factura (solo por número). Bloquea "Enviar" si es duplicada. =====
-function getValidacionEndpoint(){
-  try { return (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar'; }
-  catch(e){ return '/api/guardar'; }
-}
-function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
-function setFacturaStatus(kind, text){
-  var el=document.getElementById('facturaStatus');
-  if(!el) return;
-  el.className='factura-status '+(kind||'mute');
-  el.textContent = text || '';
-}
-async function postJSONTolerant(url, payload, opts){
-  opts = opts || {}; var timeoutMs = opts.timeoutMs || 15000; var signal = opts.signal;
-  var ctrl = new AbortController(); var timer = setTimeout(()=>ctrl.abort(), timeoutMs);
-  var merged = ctrl.signal; try{ if(signal){ merged = AbortSignal.any([signal, ctrl.signal]); } }catch(_){}
-  try{
-    var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-cache'}, body: JSON.stringify(payload), signal: merged });
-    clearTimeout(timer);
-    if(!res.ok){
-      var t = ''; try{ t = await res.text(); }catch(_){}
-      throw new Error('HTTP '+res.status+(t?(' - '+t.slice(0,200)):''));
-    }
-    var txt = ''; try{ txt = await res.text(); }catch(_){}
-    try { return txt ? JSON.parse(txt) : { status:'OK' }; }
-    catch { return { status:'OK', raw: txt }; }
-  }catch(e){ clearTimeout(timer); throw e; }
-}
-
-// Estado global de duplicado
-var __facturaDuplicada = false;
-function setDuplicadaState(isDup){
-  __facturaDuplicada = !!isDup;
-  // Deshabilita el botón de enviar si hay duplicado o si ya está guardando
-  try {
-    var btn = document.getElementById('btnEnviar');
-    if(btn){
-      var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
-      btn.disabled = !!(__facturaDuplicada || isSaving);
-    }
-  } catch(_){}
-}
-
-var __facturaAbort = null;
-
-async function validarFacturaSoloNumero(){
-  // Campo de factura
-  var fld = document.getElementById('factura') || document.getElementById('NumeroFactura');
-  if (!fld) return;
-
-  // Solo validar con 16 dígitos exactos
-  var raw = (fld.value||'').replace(/\D+/g,'');
-  if (raw.length !== 16){
-    var faltan = Math.max(0, 16 - raw.length);
-    var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
-    setFacturaStatus('warn', txt);
-    setDuplicadaState(false);
-    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-    return;
-  }
-
-  var numero = (fld.value||'').trim();
-
-  // Estado: validando y requestId anti-carrera
-  setFacturaStatus('loading','Validando…');
-  window.__facturaReqId = (window.__facturaReqId||0) + 1;
-  const _rid = window.__facturaReqId;
-
-  // Cancelar petición anterior y crear nueva con AbortController
-  try { if (window.__facturaCtl && window.__facturaCtl.abort) window.__facturaCtl.abort(); } catch(_){}
-  window.__facturaCtl = new AbortController();
-
-  try{
-    const resp = await fetch(urlGuardarReporte, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ validarDuplicadoSoloFactura: true, NumeroFactura: numero }),
-      signal: window.__facturaCtl.signal
-    });
-    const txt = await resp.text();
-    let json = {}; try{ json = JSON.parse(txt)||{}; }catch(_){ json = {}; }
-
-    // Si esta respuesta ya no es la vigente, no tocar UI
-    if (_rid !== window.__facturaReqId) return;
-
-    const duplicado = !!json.duplicado;
-    if (duplicado){
-      setFacturaStatus('error','Factura duplicada');
-      setDuplicadaState(true);
-    } else {
-      setFacturaStatus('ok','Factura aceptada');
-      setDuplicadaState(false);
-    }
-  } catch(e){
-    // Ignorar cancelaciones (AbortController) para no mostrar aviso
-    var msg = (e && (e.name || e.message || e.toString())).toString();
-    if (/AbortError|aborted/i.test(msg)) { return; }
-    // Error real de red/servidor
-    setFacturaStatus('warn','No se pudo validar ahora');
-    setDuplicadaState(false);
-  } finally {
-    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-  }
-}
-
-// Hook de listeners
-(function(){
-  document.addEventListener('DOMContentLoaded', function(){
-    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
-    if(f){
-      f.addEventListener('input', debounce(validarFacturaSoloNumero, 450));
-      if(f.value){ validarFacturaSoloNumero(); }
-    }
-  });
-
-  // Integración con el estado de guardado (si tu código usa window.isSaving)
-  var _origDoSave = window.doSave;
-  if(typeof _origDoSave === 'function'){
-    window.doSave = async function(){ try{ window.isSaving = true; setDuplicadaState(__facturaDuplicada); return await _origDoSave.apply(this, arguments); } finally { window.isSaving = false; setDuplicadaState(__facturaDuplicada); } };
-  }
-})();
-</script>
 
 
 
-<script>
-// ===== Máscara para Número de Factura: EXACTA 000-000-00-00000000 (16 dígitos, 19 chars con guiones) =====
-(function(){
-  function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
-  function formatFactura(digits){
-    var d = (digits||'').slice(0,16);
-    var g1 = d.slice(0,3), g2 = d.slice(3,6), g3 = d.slice(6,8), g4 = d.slice(8,16);
-    var out = g1;
-    if(g2) out += (out?'-':'') + g2;
-    if(g3) out += (out?'-':'') + g3;
-    if(g4) out += (out?'-':'') + g4;
-    return out;
-  }
-  function caretFromDigitIndex(formatted, digitCount){
-    var count = 0;
-    for (var i=0;i<formatted.length;i++){
-      if (/\d/.test(formatted[i])) count++;
-      if (count >= digitCount) return i+1;
-    }
-    return formatted.length;
-  }
-  function applyMaskAndPreserveCaret(input){
-    var start = input.selectionStart || 0;
-    var digitsBefore = (input.value.slice(0,start).match(/\d/g)||[]).length;
-    var formatted = formatFactura(onlyDigits(input.value));
-    if (formatted !== input.value) input.value = formatted;
-    var newPos = caretFromDigitIndex(formatted, digitsBefore);
-    try { input.setSelectionRange(newPos, newPos); } catch(e){}
-    return formatted;
-  }
-  function isFacturaCompleta(){
-    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
-    return !!(f && /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(f.value||''));
-  }
-  function initFacturaMask(input){
-    if(!input) return;
-    input.setAttribute('inputmode','numeric');
-    input.setAttribute('autocomplete','off');
-    input.setAttribute('autocorrect','off');
-    input.setAttribute('spellcheck','false');
-    input.setAttribute('minlength','19');
-    input.setAttribute('maxlength','19');
-    input.setAttribute('pattern','\\d{3}-\\d{3}-\\d{2}-\\d{8}');
-    if(!input.getAttribute('placeholder')) input.setAttribute('placeholder','000-000-00-00000000');
-
-    if (input.value) applyMaskAndPreserveCaret(input);
-
-    var deb = (typeof debounce === 'function' && typeof validarFacturaSoloNumero === 'function')
-      ? debounce(validarFacturaSoloNumero, 350)
-      : null;
-
-    input.addEventListener('input', function(){
-      applyMaskAndPreserveCaret(input);
-      var digits = (input.value.match(/\d/g)||[]).length;
-      var complete = digits === 16 && /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(input.value);
-      if (!complete){
-        // Cancelar validaciones en vuelo y futuros disparos
-        try { if (window.__facturaAbort) { window.__facturaAbort.abort(); } } catch(e){}
-        try { window.__facturaReqId = (window.__facturaReqId||0) + 1; } catch(e){}
-        if (window.__facturaDebTimer){ clearTimeout(window.__facturaDebTimer); window.__facturaDebTimer=null; }
-        // Mensaje de ayuda
-        var faltan = Math.max(0, 16 - digits);
-        var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
-        if (typeof setFacturaStatus === 'function') setFacturaStatus('warn', txt);
-        if (typeof setDuplicadaState === 'function') setDuplicadaState(false);
-        if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-        return;
-      }
-      // Completo: Validando (debounce propio)
-      if (typeof setFacturaStatus === 'function') setFacturaStatus('loading','Validando…');
-      if (window.__facturaDebTimer) clearTimeout(window.__facturaDebTimer);
-      window.__facturaDebTimer = setTimeout(function(){
-        try { validarFacturaSoloNumero(); } catch(e){}
-      }, 350);
-    }, {passive:false});
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
-    initFacturaMask(f);
-    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-  });
-})();
-</script>
 
 
 
-<script>
-(function(){
-  function isFacturaCompletaLocal(){
-    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
-    return !!(f && /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(f.value||''));
-  }
-  window.updateEnviarEnabled = function(){
-    var btn = document.getElementById('btnEnviar');
-    if(!btn) return;
-    var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
-    var dup = !!window.__facturaDuplicada;
-    var complete = isFacturaCompletaLocal();
-    btn.disabled = isSaving || dup || !complete;
-  };
-  document.addEventListener('DOMContentLoaded', function(){
-    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-  });
-})();
-</script>
+
+
+
 
 
 
@@ -819,5 +596,231 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 
+<script>
+(function(){
+  function isFacturaCompletaLocal(){
+    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
+    return !!(f && /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(f.value||''));
+  }
+  window.updateEnviarEnabled = function(){
+    var btn = document.getElementById('btnEnviar');
+    if(!btn) return;
+    var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
+    var dup = !!window.__facturaDuplicada;
+    var complete = isFacturaCompletaLocal();
+    btn.disabled = isSaving || dup || !complete;
+  };
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+  });
+})();
+</script>
+<script>
+// ===== Máscara para Número de Factura: EXACTA 000-000-00-00000000 (16 dígitos, 19 chars con guiones) =====
+(function(){
+  function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
+  function formatFactura(digits){
+    var d = (digits||'').slice(0,16);
+    var g1 = d.slice(0,3), g2 = d.slice(3,6), g3 = d.slice(6,8), g4 = d.slice(8,16);
+    var out = g1;
+    if(g2) out += (out?'-':'') + g2;
+    if(g3) out += (out?'-':'') + g3;
+    if(g4) out += (out?'-':'') + g4;
+    return out;
+  }
+  function caretFromDigitIndex(formatted, digitCount){
+    var count = 0;
+    for (var i=0;i<formatted.length;i++){
+      if (/\d/.test(formatted[i])) count++;
+      if (count >= digitCount) return i+1;
+    }
+    return formatted.length;
+  }
+  function applyMaskAndPreserveCaret(input){
+    var start = input.selectionStart || 0;
+    var digitsBefore = (input.value.slice(0,start).match(/\d/g)||[]).length;
+    var formatted = formatFactura(onlyDigits(input.value));
+    if (formatted !== input.value) input.value = formatted;
+    var newPos = caretFromDigitIndex(formatted, digitsBefore);
+    try { input.setSelectionRange(newPos, newPos); } catch(e){}
+    return formatted;
+  }
+  function isFacturaCompleta(){
+    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
+    return !!(f && /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(f.value||''));
+  }
+  function initFacturaMask(input){
+    if(!input) return;
+    input.setAttribute('inputmode','numeric');
+    input.setAttribute('autocomplete','off');
+    input.setAttribute('autocorrect','off');
+    input.setAttribute('spellcheck','false');
+    input.setAttribute('minlength','19');
+    input.setAttribute('maxlength','19');
+    input.setAttribute('pattern','\\d{3}-\\d{3}-\\d{2}-\\d{8}');
+    if(!input.getAttribute('placeholder')) input.setAttribute('placeholder','000-000-00-00000000');
+
+    if (input.value) applyMaskAndPreserveCaret(input);
+
+    var deb = (typeof debounce === 'function' && typeof validarFacturaSoloNumero === 'function')
+      ? debounce(validarFacturaSoloNumero, 350)
+      : null;
+
+    input.addEventListener('input', function(){
+      applyMaskAndPreserveCaret(input);
+      var digits = (input.value.match(/\d/g)||[]).length;
+      var complete = digits === 16 && /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(input.value);
+      if (!complete){
+        // Cancelar validaciones en vuelo y futuros disparos
+        try { if (window.__facturaAbort) { window.__facturaAbort.abort(); } } catch(e){}
+        try { window.__facturaReqId = (window.__facturaReqId||0) + 1; } catch(e){}
+        if (window.__facturaDebTimer){ clearTimeout(window.__facturaDebTimer); window.__facturaDebTimer=null; }
+        // Mensaje de ayuda
+        var faltan = Math.max(0, 16 - digits);
+        var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
+        if (typeof setFacturaStatus === 'function') setFacturaStatus('warn', txt);
+        if (typeof setDuplicadaState === 'function') setDuplicadaState(false);
+        if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+        return;
+      }
+      // Completo: Validando (debounce propio)
+      if (typeof setFacturaStatus === 'function') setFacturaStatus('loading','Validando…');
+      if (window.__facturaDebTimer) clearTimeout(window.__facturaDebTimer);
+      window.__facturaDebTimer = setTimeout(function(){
+        try { validarFacturaSoloNumero(); } catch(e){}
+      }, 350);
+    }, {passive:false});
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
+    initFacturaMask(f);
+    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+  });
+})();
+</script>
+<script>
+// ===== Validación en vivo de Número de factura (solo por número). Bloquea "Enviar" si es duplicada. =====
+function getValidacionEndpoint(){
+  try { return (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar'; }
+  catch(e){ return '/api/guardar'; }
+}
+function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+function setFacturaStatus(kind, text){
+  var el=document.getElementById('facturaStatus');
+  if(!el) return;
+  el.className='factura-status '+(kind||'mute');
+  el.textContent = text || '';
+}
+async function postJSONTolerant(url, payload, opts){
+  opts = opts || {}; var timeoutMs = opts.timeoutMs || 15000; var signal = opts.signal;
+  var ctrl = new AbortController(); var timer = setTimeout(()=>ctrl.abort(), timeoutMs);
+  var merged = ctrl.signal; try{ if(signal){ merged = AbortSignal.any([signal, ctrl.signal]); } }catch(_){}
+  try{
+    var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-cache'}, body: JSON.stringify(payload), signal: merged });
+    clearTimeout(timer);
+    if(!res.ok){
+      var t = ''; try{ t = await res.text(); }catch(_){}
+      throw new Error('HTTP '+res.status+(t?(' - '+t.slice(0,200)):''));
+    }
+    var txt = ''; try{ txt = await res.text(); }catch(_){}
+    try { return txt ? JSON.parse(txt) : { status:'OK' }; }
+    catch { return { status:'OK', raw: txt }; }
+  }catch(e){ clearTimeout(timer); throw e; }
+}
+
+// Estado global de duplicado
+var __facturaDuplicada = false;
+function setDuplicadaState(isDup){
+  __facturaDuplicada = !!isDup;
+  // Deshabilita el botón de enviar si hay duplicado o si ya está guardando
+  try {
+    var btn = document.getElementById('btnEnviar');
+    if(btn){
+      var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
+      btn.disabled = !!(__facturaDuplicada || isSaving);
+    }
+  } catch(_){}
+}
+
+var __facturaAbort = null;
+async function validarFacturaSoloNumero(){
+  // Solo validar con 16 dígitos exactos
+  var fld = document.getElementById('factura') || document.getElementById('NumeroFactura');
+  if (fld){
+    var raw = (fld.value||'').replace(/\D+/g,'');
+    if (raw.length !== 16){
+      var faltan = Math.max(0, 16 - raw.length);
+      var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
+      try { setFacturaStatus('warn', txt); setDuplicadaState(false); } catch(e){}
+      if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+      return;
+    }
+  }
+
+  // Gate: solo validar cuando hay exactamente 16 dígitos (formato 3-3-2-8)
+  var fld = document.getElementById('factura') || document.getElementById('NumeroFactura');
+  if (fld) {
+    var raw = (fld.value||'').replace(/\D+/g,'');
+    if (raw.length !== 16) {
+      var faltan = Math.max(0, 16 - raw.length);
+      var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
+      try { setFacturaStatus('warn', txt); setDuplicadaState(false); } catch(e){}
+      if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+      return;
+    }
+  }
+
+  var inp = document.getElementById('factura') || document.getElementById('NumeroFactura');
+  if(!inp){ return; }
+  var numero = (inp.value||'').trim();
+  if(!numero){
+    setFacturaStatus('mute','');
+    setDuplicadaState(false);
+    return;
+  }
+  setFacturaStatus('loading','Validando…');
+  if(__facturaAbort){ try{ __facturaAbort.abort(); }catch(_){ } }
+  __facturaAbort = new AbortController();
+  try{
+    var resp = await postJSONTolerant(getValidacionEndpoint(), {
+      validarDuplicadoSoloFactura: true,
+      NumeroFactura: numero
+    }, { timeoutMs: 20000, signal: __facturaAbort.signal });
+    var dup = !!(resp && resp.duplicado === true);
+    if(dup){
+      setFacturaStatus('err','Factura duplicada');
+      setDuplicadaState(true);
+    }else{
+      setFacturaStatus('ok','Factura aceptada');
+      setDuplicadaState(false);
+    }
+  }catch(e){
+    // Si el error es por cancelación (AbortController), no cambiamos el estado: mantenemos "Validando…"
+    var msg = (e && (e.name || e.message || e.toString())).toString();
+    if (/AbortError|aborted/i.test(msg)) { return; }
+    // Error real de red/servidor: mostramos aviso pero no bloqueamos
+    setFacturaStatus('warn','No se pudo validar ahora');
+    setDuplicadaState(false);
+  }
+}
+
+// Hook de listeners
+(function(){
+  document.addEventListener('DOMContentLoaded', function(){
+    var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
+    if(f){
+      f.addEventListener('input', debounce(validarFacturaSoloNumero, 450));
+      if(f.value){ validarFacturaSoloNumero(); }
+    }
+  });
+
+  // Integración con el estado de guardado (si tu código usa window.isSaving)
+  var _origDoSave = window.doSave;
+  if(typeof _origDoSave === 'function'){
+    window.doSave = async function(){ try{ window.isSaving = true; setDuplicadaState(__facturaDuplicada); return await _origDoSave.apply(this, arguments); } finally { window.isSaving = false; setDuplicadaState(__facturaDuplicada); } };
+  }
+})();
+</script>
 </body>
 </html>
