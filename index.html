@@ -56,8 +56,23 @@
 .factura-status.err{color:#b00020}
 .factura-status.warn{color:#b26a00}
 .factura-status.mute{color:#6b7280}
-.factura-status .spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:giro .8s linear infinite;transform:translateY(1px)}
-@keyframes giro{to{transform:rotate(360deg) translateY(1px)}}
+
+}
+
+
+/* Spinner con pseudo-elemento (robusto) */
+.factura-status{font-size:.9rem;font-weight:600;margin-left:.5rem;vertical-align:middle}
+.factura-status.ok{color:#16a34a}
+.factura-status.err{color:#ef4444}
+.factura-status.warn{color:#f59e0b}
+.factura-status.loading{color:#64748b;position:relative;padding-left:1.4rem}
+.factura-status.loading::before{
+  content:"";width:1rem;height:1rem;border-radius:50%;
+  border:.18rem solid #cbd5e1;border-top-color:#334155;
+  position:absolute;left:0;top:50%;transform:translateY(-50%);
+  animation:factura-spin 1s linear infinite;
+}
+@keyframes factura-spin{to{transform:translateY(-50%) rotate(360deg);}}
 
 </style>
 </head>
@@ -469,11 +484,11 @@ function getValidacionEndpoint(){
   catch(e){ return '/api/guardar'; }
 }
 function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
-function setFacturaStatus(kind, text, withSpinner){
-  var el = document.getElementById('facturaStatus');
-  if(!el){ return; }
-  el.className = 'factura-status ' + (kind||'mute');
-  el.innerHTML = (withSpinner?'<span class="spin" aria-hidden="true"></span>':'') + '<span>'+ (text||'') +'</span>';
+function setFacturaStatus(kind, text){
+  var el=document.getElementById('facturaStatus');
+  if(!el) return;
+  el.className='factura-status '+(kind||'mute');
+  el.textContent = text || '';
 }
 async function postJSONTolerant(url, payload, opts){
   opts = opts || {}; var timeoutMs = opts.timeoutMs || 15000; var signal = opts.signal;
@@ -516,7 +531,7 @@ async function validarFacturaSoloNumero(){
     setDuplicadaState(false);
     return;
   }
-  setFacturaStatus('mute','Validando…', true);
+  setFacturaStatus('loading','Validando…');
   if(__facturaAbort){ try{ __facturaAbort.abort(); }catch(_){ } }
   __facturaAbort = new AbortController();
   try{
