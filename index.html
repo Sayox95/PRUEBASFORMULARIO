@@ -817,34 +817,54 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   // Obtener URL de Drive tras guardar (si el backend no la devolvió)
-  window.obtenerFileUrlDespuesDeGuardar = async function(resp, numeroFactura){
+  
+window.obtenerFileUrlDespuesDeGuardar = async function(resp, numeroFactura, tries=4, delayMs=700){
+  function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  function nfDigits(s){ return (s||'').toString().replace(/\D/g,''); }
+  function nfDigitsHyphens(s){
+    return (s||'').toString().replace(/[^0-9-]/g,'').replace(/-+/g,'-').trim();
+  }
+  try{
+    if (resp && (resp.fileUrl || resp.file_url || resp.url || resp.file)) {
+      return resp.fileUrl || resp.file_url || resp.url || resp.file;
+    }
+  }catch(_){}
+  const base = (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar';
+  const getUrl = base.replace(/(\?.*)$/, '') + '?leerFacturas=true&_=' + Date.now();
+  const targetDigits = nfDigits(numeroFactura);
+  const targetHyph = nfDigitsHyphens(numeroFactura);
+  for (let t=0; t<tries; t++){
     try{
-      if(resp && (resp.fileUrl || resp.file_url || resp.url || resp.file)){
-        return resp.fileUrl || resp.file_url || resp.url || resp.file;
-      }
-    }catch(_){}
-    try{
-      var base = (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar';
-      var getUrl = base.replace(/(\?.*)$/, '') + '?leerFacturas=true';
-      var r = await fetch(getUrl, { method:'GET' });
-      var txt = await r.text();
-      var arr = [];
-      try { arr = JSON.parse(txt) || []; } catch(_){ arr = []; }
-      if (Array.isArray(arr) && numeroFactura){
-        for (var i = arr.length-1; i >= 0; i--){
-          var it = arr[i] || {};
-          var nf = (it['NumeroFactura'] || it['Número de factura'] || it['NoFactura'] || it['Factura'] || '').toString().trim();
-          if (nf === (numeroFactura||'').toString().trim()){
-            for (var k in it){
-              var v = (it[k]||'').toString();
+      const r = await fetch(getUrl, { method:'GET' });
+      const txt = await r.text();
+      let arr = []; try{ arr = JSON.parse(txt) || []; }catch(_){ arr = []; }
+      if (Array.isArray(arr) && (targetDigits || targetHyph)){
+        for (let i = arr.length-1; i >= 0; i--){
+          const it = arr[i] || {};
+          let match = false;
+          for (const k in it){
+            const val = (it[k]||'').toString();
+            if (!val) continue;
+            const d  = nfDigits(val);
+            const dh = nfDigitsHyphens(val);
+            if ((targetDigits && d === targetDigits) || (targetHyph && dh === targetHyph)){
+              match = true; break;
+            }
+          }
+          if (match){
+            for (const k in it){
+              const v = (it[k]||'').toString();
               if (/^https?:\/\/(drive|docs)\.google\.com\//.test(v)) return v;
             }
           }
         }
       }
-    }catch(e){ console.warn('Fallback GET error:', e); }
-    return null;
-  };
+    }catch(e){}
+    await sleep(delayMs);
+    delayMs = Math.round(delayMs * 1.6);
+  }
+  return null;
+};
 
   // Botones
   document.addEventListener('DOMContentLoaded', function(){
@@ -878,11 +898,25 @@ document.addEventListener('DOMContentLoaded', function(){
       btnNo.addEventListener('click', function(){
         var url = window.__lastDriveUrl || null;
         hideConfirm();
-        if (url){
-          try{ window.open(url, '_blank'); }catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); }
-        }else{
-          alert('No pude localizar el enlace del PDF en Drive.');
-        }
+        if (url) {
+  try{ window.open(url, '_blank'); }
+  catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); }
+} else {
+  // Reintentar localizar la URL ahora que ha pasado algo de tiempo
+  var facturaEl = document.getElementById('factura') || document.getElementById('NumeroFactura');
+  var num = (facturaEl && facturaEl.value) || '';
+  obtenerFileUrlDespuesDeGuardar({}, num, 5, 700).then(function(u){
+    if (u) {
+      try{ window.open(u, '_blank'); }
+      catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); }
+    } else {
+      alert('No pude localizar el enlace del PDF en Drive.');
+    }
+  }).catch(function(){
+    alert('No pude localizar el enlace del PDF en Drive.');
+  });
+}
+
       });
     }
   });
