@@ -423,9 +423,13 @@
         await doSave(dd, data, filename, dedupeKey); // doSave ya muestra progreso
 
         // === Preparar descarga diferida por gesto ===
-        // Intentar obtener URL de Drive para la opción "No"
-        let driveUrl = null;
-        try { driveUrl = await obtenerFileUrlDespuesDeGuardar({}, data.NumeroFactura); } catch(_){}
+        // Mostrar inmediatamente el modal "Se descargará el PDF" y resolver driveUrl EN SEGUNDO PLANO
+        window.__lastDriveUrl = null;
+        try {
+          Promise.resolve().then(function(){
+            return (typeof obtenerFileUrlDespuesDeGuardar==='function' ? obtenerFileUrlDespuesDeGuardar({}, data.NumeroFactura) : null);
+          }).then(function(u){ if(u) window.__lastDriveUrl = u; }).catch(function(){});
+        } catch(_) {}
 
         // Store para el click del usuario
         window.__lastDD = dd;
@@ -433,8 +437,7 @@
         window.__lastDriveUrl = driveUrl || null;
 
         // Habilitar UI y mostrar modal "Se descargará el PDF"
-        setBusy(false); isSaving = false; if (typeof updateEnviarEnabled==='function') updateEnviarEnabled();
-        showPreDescargaModal();
+        setBusy(false); isSaving = false; if (typeof updateEnviarEnabled==='function') updateEnviarEnabled(); showPreDescargaModal();
 
         // Render preview por si el usuario quiere ver
         try { renderPdfPreview(dd); } catch(_){}
@@ -895,29 +898,42 @@ window.obtenerFileUrlDespuesDeGuardar = async function(resp, numeroFactura, trie
     }
     if (btnNo){
       btnNo.addEventListener('click', function(){
-        var url = window.__lastDriveUrl || null;
+        
         hideConfirm();
-        if (url) {
-  try{ window.open(url, '_blank'); }
-  catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); }
-} else {
-  // Reintentar localizar la URL ahora que ha pasado algo de tiempo
-  var facturaEl = document.getElementById('factura') || document.getElementById('NumeroFactura');
-  var num = (facturaEl && facturaEl.value) || '';
-  obtenerFileUrlDespuesDeGuardar({}, num, 5, 700).then(function(u){
-    if (u) {
-      try{ window.open(u, '_blank'); }
-      catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); }
-    } else {
-      alert('No pude localizar el enlace del PDF en Drive.');
-    }
-  }).catch(function(){
-    alert('No pude localizar el enlace del PDF en Drive.');
-  });
-}
+        // Prioritize any already-known fileUrl (from POST response or earlier lookup)
+        var existing = window.__lastDriveUrl || (window.__lastResp && (window.__lastResp.fileUrl || window.__lastResp.file_url || window.__lastResp.url || window.__lastResp.file)) || null;
+        if (existing) {
+          try { window.open(existing, '_blank', 'noopener'); } catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); }
+          return;
+        }
 
-      });
-    }
+        // Open a placeholder tab immediately (user gesture) to avoid popup blockers
+        var win = null;
+        try { win = window.open('about:blank', '_blank', 'noopener'); } catch(e){ win = null; }
+
+        // Resolve the Drive URL now
+        var facturaEl = document.getElementById('factura') || document.getElementById('NumeroFactura');
+        var num = (facturaEl && facturaEl.value) || '';
+        var resp = window.__lastResp || {};
+        obtenerFileUrlDespuesDeGuardar(resp, num, 5, 700).then(function(u){
+          if (u) {
+            window.__lastDriveUrl = u;
+            try {
+              if (win && !win.closed) { win.location = u; }
+              else { window.open(u, '_blank', 'noopener'); }
+            } catch(e) {
+              alert('No se pudo abrir el enlace del PDF en Drive.');
+            }
+          } else {
+            try { if (win && !win.closed) win.close(); } catch(_){}
+            alert('No pude localizar el enlace del PDF en Drive.');
+          }
+        }).catch(function(){
+          try { if (win && !win.closed) win.close(); } catch(_){}
+          alert('No pude localizar el enlace del PDF en Drive.');
+        });
+});
+}
   });
 })();
 </script>
