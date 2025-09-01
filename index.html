@@ -530,69 +530,64 @@ function setDuplicadaState(isDup){
 }
 
 var __facturaAbort = null;
+
 async function validarFacturaSoloNumero(){
-  // Solo validar con 16 dígitos exactos
+  // Campo de factura
   var fld = document.getElementById('factura') || document.getElementById('NumeroFactura');
-  if (fld){
-    var raw = (fld.value||'').replace(/\D+/g,'');
-    if (raw.length !== 16){
-      var faltan = Math.max(0, 16 - raw.length);
-      var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
-      try { setFacturaStatus('warn', txt); if (_rid === window.__facturaReqId) if (_rid === window.__facturaReqId) setDuplicadaState(false); 
+  if (!fld) return;
+
+  // Solo validar con 16 dígitos exactos
+  var raw = (fld.value||'').replace(/\D+/g,'');
+  if (raw.length !== 16){
+    var faltan = Math.max(0, 16 - raw.length);
+    var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
+    setFacturaStatus('warn', txt);
+    setDuplicadaState(false);
+    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+    return;
+  }
+
+  var numero = (fld.value||'').trim();
+
+  // Estado: validando y requestId anti-carrera
+  setFacturaStatus('loading','Validando…');
+  window.__facturaReqId = (window.__facturaReqId||0) + 1;
+  const _rid = window.__facturaReqId;
+
+  // Cancelar petición anterior y crear nueva con AbortController
+  try { if (window.__facturaCtl && window.__facturaCtl.abort) window.__facturaCtl.abort(); } catch(_){}
+  window.__facturaCtl = new AbortController();
+
+  try{
+    const resp = await fetch(urlGuardarReporte, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ validarDuplicadoSoloFactura: true, NumeroFactura: numero }),
+      signal: window.__facturaCtl.signal
+    });
+    const txt = await resp.text();
+    let json = {}; try{ json = JSON.parse(txt)||{}; }catch(_){ json = {}; }
+
+    // Si esta respuesta ya no es la vigente, no tocar UI
+    if (_rid !== window.__facturaReqId) return;
+
+    const duplicado = !!json.duplicado;
+    if (duplicado){
+      setFacturaStatus('error','Factura duplicada');
+      setDuplicadaState(true);
+    } else {
+      setFacturaStatus('ok','Factura aceptada');
+      setDuplicadaState(false);
+    }
   } catch(e){
-    // Ignorar cancelaciones (AbortController) para no mostrar 'No se pudo validar ahora'
+    // Ignorar cancelaciones (AbortController) para no mostrar aviso
     var msg = (e && (e.name || e.message || e.toString())).toString();
     if (/AbortError|aborted/i.test(msg)) { return; }
     // Error real de red/servidor
-    if (_rid === window.__facturaReqId) setFacturaStatus('warn','No se pudo validar ahora');
-    if (_rid === window.__facturaReqId) setDuplicadaState(false);
-  }
-      if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-      return;
-    }
-  }
-
-  // Gate: solo validar cuando hay exactamente 16 dígitos (formato 3-3-2-8)
-  var fld = document.getElementById('factura') || document.getElementById('NumeroFactura');
-  if (fld) {
-    var raw = (fld.value||'').replace(/\D+/g,'');
-    if (raw.length !== 16) {
-      var faltan = Math.max(0, 16 - raw.length);
-      var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
-      try { setFacturaStatus('warn', txt); if (_rid === window.__facturaReqId) setDuplicadaState(false); } catch(e){}
-      if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
-      return;
-    }
-  }
-
-  var inp = document.getElementById('factura') || document.getElementById('NumeroFactura');
-  if(!inp){ return; }
-  var numero = (inp.value||'').trim();
-  if(!numero){
-    setFacturaStatus('mute','');
-    if (_rid === window.__facturaReqId) setDuplicadaState(false);
-    return;
-  }
-  setFacturaStatus('loading','Validando…');
-  if(__facturaAbort){ try{ __facturaAbort.abort(); }catch(_){ } }
-  __facturaAbort = new AbortController();
-  try{
-    var resp = await postJSONTolerant(getValidacionEndpoint(), {
-      validarDuplicadoSoloFactura: true,
-      NumeroFactura: numero
-    }, { timeoutMs: 20000, signal: __facturaAbort.signal });
-    var dup = !!(resp && resp.duplicado === true);
-    if(dup){
-      setFacturaStatus('err','Factura duplicada');
-      if (_rid === window.__facturaReqId) setDuplicadaState(true);
-    }else{
-      if (_rid === window.__facturaReqId) setFacturaStatus('ok','Factura aceptada');
-      if (_rid === window.__facturaReqId) setDuplicadaState(false);
-    }
-  }catch(e){
-    // Si no se pudo validar ahora, no bloquear envío para no frenar el flujo
-    if (_rid === window.__facturaReqId) setFacturaStatus('warn','No se pudo validar ahora');
-    if (_rid === window.__facturaReqId) setDuplicadaState(false);
+    setFacturaStatus('warn','No se pudo validar ahora');
+    setDuplicadaState(false);
+  } finally {
+    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
   }
 }
 
