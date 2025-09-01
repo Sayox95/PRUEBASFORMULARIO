@@ -577,7 +577,7 @@ async function validarNumeroFactura(numero){
 }
 
 function setupValidacionFactura(){
-  const input = document.getElementById('NumeroFactura');
+  const input = document.getElementById('NumeroFactura') || document.getElementById('factura');
   if(!input) return;
   const onType = debounce(()=> validarNumeroFactura(input.value), 450);
   input.addEventListener('input', onType);
@@ -593,11 +593,11 @@ document.addEventListener('DOMContentLoaded', setupValidacionFactura);
 function ensureFacturaStatusAnchor(){
   var span = document.getElementById('facturaStatus');
   if (span) return span;
-  var input = document.getElementById('NumeroFactura');
+  var input = document.getElementById('NumeroFactura') || document.getElementById('factura');
   if (!input) return null;
 
   // 1) Intentar junto al label asociado
-  var label = document.querySelector('label[for="NumeroFactura"]');
+  var label = document.querySelector('label[for="NumeroFactura"]') || document.querySelector('label[for="factura"]');
   span = document.createElement('span');
   span.id = 'facturaStatus';
   span.className = 'factura-status';
