@@ -404,36 +404,77 @@
     function onSectorChange(){ const selSector=$('sector'), selPlaca=$('placa'), jefeInput=$('jefe'); const sector=selSector?selSector.value:''; const placas=(Catalogos.placasPorSector[sector]||[]).slice().sort(); setSelectOptions(selPlaca,placas,'Selecciona…'); if(selPlaca) selPlaca.disabled=placas.length===0; if(jefeInput) jefeInput.value=Catalogos.jefePorSector[sector]||''; }
 
     async function enviarReporte(){
-      if(isSaving) return;
+if(isSaving) return;
       if(!validateForm()){ showToast('Completa los campos requeridos'); return; }
       isSaving = true; setBusy(true);
-      let data, dd, filename, dedupeKey;
+      let data, dd, filename, dedupeKey, resp;
       try{
         await waitForPdfMake();
         data = getFormData();
         dd   = buildDocDefinition(data, ImageState);
+
         dedupeKey = ((data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
+
         filename = ((data.Sector||'sector') + '_' + (data.Fecha||'fecha') + '_' + (data.NumeroFactura||'factura') + '.pdf')
           .replace(/\s+/g, '_')
           .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           .replace(/[^A-Za-z0-9._-]/g, '');
 
-        try { pdfMake.createPdf(dd).download(filename); } catch (e) {}
+        // === GUARDAR PRIMERO ===
+        showProgress('Guardando información...');
+        const b64 = await new Promise(function(resolve, reject){
+          try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
+          catch(err){ reject(err); }
+        });
 
-        setTimeout(async function(){
-          try { await doSave(dd, data, filename, dedupeKey); } catch (e) { alert('Error al guardar el reporte. Inténtalo de nuevo.'); } finally {
-            setBusy(false);
-            isSaving = false;
-          }
-        }, 0);
+        resp = await postJSONWithRetry(
+          urlGuardarReporte,
+          {
+            Sector: data.Sector,
+            Placa: data.Placa,
+            Proceso: data.Proceso,
+            Nombre: data.Nombre,
+            Identidad: data.Identidad,
+            TotalGastado: data.TotalGastado,
+            LitrosConsumidos: data.LitrosConsumidos,
+            MotivoDelLlenado: data.MotivoDelLlenado,
+            Fecha: data.Fecha,
+            HorasDelViaje: data.HorasDelViaje,
+            KmActual: data.KmActual,
+            NombreComercio: data.NombreComercio,
+            NumeroFactura: data.NumeroFactura,
+            JefeInmediato: data.JefeInmediato,
+            pdf: b64,
+            filename: filename,
+            dedupeKey: dedupeKey
+          },
+          0,
+          20000
+        );
+        hideProgress('Información enviada correctamente');
 
-        renderPdfPreview(dd);
+        // Intentar obtener URL del archivo en Drive (para la opción "No")
+        const driveUrl = await obtenerFileUrlDespuesDeGuardar(resp, data.NumeroFactura);
+
+        // === LUEGO DESCARGAR ===
+        try { pdfMake.createPdf(dd).download(filename); } catch (e) { console.warn('Descarga PDF falló:', e); }
+
+        // === MODAL DE CONFIRMACIÓN ===
+        if (typeof showToast === 'function') showToast('Reporte guardado correctamente');
+        if (typeof window.showConfirmDescargaModal === 'function') window.showConfirmDescargaModal(driveUrl);
+
+        // Actualizar preview
+        try { renderPdfPreview(dd); } catch(_){}
+
       } catch (e) {
+        console.warn('Error en guardar:', e);
+        alert('Error al guardar el reporte. Inténtalo de nuevo.');
+      } finally {
         setBusy(false);
         isSaving = false;
-        alert('No se pudo generar el PDF');
       }
-    }
+}
+
 
     async function doSave(dd, data, filename, dedupeKey){
       showProgress('Guardando información...');
@@ -467,6 +508,37 @@
       );
       hideProgress('Información enviada correctamente');
     }
+    async function obtenerFileUrlDespuesDeGuardar(resp, numeroFactura){
+      // Si el backend devuelve un campo de URL, úsalo
+      try{
+        if (resp && (resp.fileUrl || resp.file_url || resp.url || resp.file)) {
+          return resp.fileUrl || resp.file_url || resp.url || resp.file;
+        }
+      }catch(_){}
+      // Fallback: GET ?leerFacturas=true y buscar por Número de factura (última coincidencia)
+      try{
+        var base = (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar';
+        var getUrl = base.replace(/(\?.*)$/, '') + '?leerFacturas=true';
+        var r = await fetch(getUrl, { method:'GET' });
+        var txt = await r.text();
+        var arr = [];
+        try { arr = JSON.parse(txt) || []; } catch(_){ arr = []; }
+        if (Array.isArray(arr) && numeroFactura){
+          for (var i = arr.length-1; i >= 0; i--){
+            var it = arr[i] || {};
+            var nf = (it['NumeroFactura'] || it['Número de factura'] || it['NoFactura'] || it['Factura'] || '').toString().trim();
+            if (nf === (numeroFactura||'').toString().trim()){
+              for (var k in it){
+                var v = (it[k]||'').toString();
+                if (/^https?:\/\/(drive|docs)\.google\.com\//.test(v)) return v;
+              }
+            }
+          }
+        }
+      }catch(e){ console.warn('Fallback GET error:', e); }
+      return null;
+    }
+
 
     function attachImageInputs(){ ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',function(){handleImageInput(id)},{passive:true}); }); }
 
@@ -726,5 +798,57 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
+
+<style>
+  /* Modal de confirmación de descarga */
+  #confirm-descarga-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999}
+  #confirm-descarga{background:#fff;max-width:480px;width:92%;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:18px 18px 14px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  #confirm-descarga h3{margin:0 0 8px;font-size:18px;font-weight:650}
+  #confirm-descarga p{margin:0 0 14px;color:#333}
+  #confirm-descarga .btns{display:flex;gap:10px;justify-content:flex-end}
+  #confirm-descarga button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
+  #confirm-descarga .btn-yes{background:#0ea5e9;color:#fff}
+  #confirm-descarga .btn-no{background:#e2e8f0;color:#111827}
+</style>
+
+<div id="confirm-descarga-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-descarga-title" style="display:none">
+  <div id="confirm-descarga">
+    <h3 id="confirm-descarga-title">¿El PDF se descargó?</h3>
+    <p>Si eliges <strong>Sí</strong>, se limpiará el formulario para un nuevo reporte. Si eliges <strong>No</strong>, abriremos la ubicación del archivo en Drive en una nueva pestaña.</p>
+    <div class="btns">
+      <button type="button" class="btn-no" id="btnNoDescargo">No</button>
+      <button type="button" class="btn-yes" id="btnSiDescargo">Sí</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function showConfirmModal(fileUrl){
+    window.__lastDriveUrl = fileUrl || null;
+    var ov = document.getElementById('confirm-descarga-overlay');
+    if (ov) ov.style.display = 'flex';
+    setTimeout(function(){ try{ document.getElementById('btnSiDescargo').focus(); }catch(_){}} ,0);
+  }
+  function hideConfirmModal(){
+    var ov = document.getElementById('confirm-descarga-overlay');
+    if (ov) ov.style.display = 'none';
+  }
+  window.showConfirmDescargaModal = showConfirmModal;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btnSi = document.getElementById('btnSiDescargo');
+    var btnNo = document.getElementById('btnNoDescargo');
+    if (btnSi) btnSi.addEventListener('click', function(){
+      hideConfirmModal(); try{ location.reload(); }catch(_){}
+    });
+    if (btnNo) btnNo.addEventListener('click', function(){
+      var url = window.__lastDriveUrl; hideConfirmModal();
+      if (url){ try{ window.open(url, '_blank'); }catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); } }
+      else { alert('No pude localizar el enlace del PDF en Drive.'); }
+    });
+  });
+})();
+</script>
 </body>
 </html>
