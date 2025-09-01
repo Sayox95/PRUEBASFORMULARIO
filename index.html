@@ -642,6 +642,10 @@ async function validarFacturaSoloNumero(){
       applyMaskAndPreserveCaret(input);
       var complete = /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(input.value);
       if (!complete){
+        // Cancelar cualquier validación en vuelo y avanzar reqId para ignorar respuestas antiguas
+        try { if (window.__facturaAbort) { window.__facturaAbort.abort(); } } catch(e){}
+        try { window.__facturaReqId = (window.__facturaReqId||0) + 1; } catch(e){}
+
         var digits = (input.value.match(/\d/g)||[]).length;
         var faltan = Math.max(0, 16 - digits);
         var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
@@ -751,6 +755,10 @@ document.addEventListener('DOMContentLoaded', function(){
   f.addEventListener('input', function(){
     var complete = /^\d{3}-\d{3}-\d{2}-\d{8}$/.test(f.value||'');
     if (!complete) {
+        // Cancelar cualquier validación en vuelo y avanzar reqId para ignorar respuestas antiguas
+        try { if (window.__facturaAbort) { window.__facturaAbort.abort(); } } catch(e){}
+        try { window.__facturaReqId = (window.__facturaReqId||0) + 1; } catch(e){}
+
       var digits = ((f.value||'').match(/\d/g)||[]).length;
       var faltan = Math.max(0, 16 - digits);
       var txt = (faltan === 1) ? 'Falta 1 de 16 dígitos' : ('Faltan ' + faltan + ' de 16 dígitos');
