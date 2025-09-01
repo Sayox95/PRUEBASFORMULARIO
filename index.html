@@ -574,3 +574,70 @@ async function validarFacturaSoloNumero(){
 
 </body>
 </html>
+<script>
+// --- Race-condition safe validator override ---
+window.__facturaReqId = window.__facturaReqId || 0;
+window.__facturaAbort = window.__facturaAbort || null;
+
+// Override: safer version with request gating + abort-aware errors
+async function validarFacturaSoloNumero(){
+  var inp = document.getElementById('factura') || document.getElementById('NumeroFactura');
+  if(!inp){ return; }
+  var numero = (inp.value||'').trim();
+  var reqId = ++window.__facturaReqId;
+
+  if (!numero){
+    if (reqId === window.__facturaReqId){
+      setFacturaStatus('mute','');
+      setDuplicadaState(false);
+    }
+    return;
+  }
+
+  // Cancel previous request
+  if (window.__facturaAbort) { try { window.__facturaAbort.abort(); } catch(_) {} }
+  window.__facturaAbort = new AbortController();
+
+  // Show loading immediately
+  setFacturaStatus('loading','Validando…');
+
+  try{
+    var resp = await postJSONTolerant(
+      (typeof getValidacionEndpoint === 'function' ? getValidacionEndpoint() : (window.urlGuardarReporte || '/api/guardar')),
+      { validarDuplicadoSoloFactura: true, NumeroFactura: numero },
+      { timeoutMs: 20000, signal: window.__facturaAbort.signal }
+    );
+
+    if (reqId !== window.__facturaReqId) return; // stale
+
+    var dup = !!(resp && resp.duplicado === true);
+    if (dup){
+      setFacturaStatus('err','Factura duplicada');
+      setDuplicadaState(true);
+    } else {
+      setFacturaStatus('ok','Factura aceptada');
+      setDuplicadaState(false);
+    }
+  } catch(e){
+    if (reqId !== window.__facturaReqId) return; // stale
+    var isAbort = (e && (e.name === 'AbortError' || e.code === 20)) || (window.__facturaAbort && window.__facturaAbort.signal && window.__facturaAbort.signal.aborted);
+    // Some browsers throw TypeError on abort; ignore those too
+    var msg = String(e && (e.name || e.message || ''));
+    if (!isAbort && !(e instanceof TypeError && /abort|cancel/i.test(msg))) {
+      setFacturaStatus('warn','No se pudo validar ahora');
+      setDuplicadaState(false);
+    }
+  }
+}
+
+// Ensure typing shows loading right away, then debounce validation
+document.addEventListener('DOMContentLoaded', function(){
+  var f = document.getElementById('factura') || document.getElementById('NumeroFactura');
+  if (!f) return;
+  var deb = (typeof debounce === 'function') ? debounce(validarFacturaSoloNumero, 350) : validarFacturaSoloNumero;
+  f.addEventListener('input', function(){
+    setFacturaStatus('loading','Validando…');
+    deb();
+  });
+});
+</script>
