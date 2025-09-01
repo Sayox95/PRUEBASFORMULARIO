@@ -587,5 +587,57 @@ function setupValidacionFactura(){
 document.addEventListener('DOMContentLoaded', setupValidacionFactura);
 </script>
 
+
+<script>
+// --- PATCH: asegurar ancla visual para estado de factura ---
+function ensureFacturaStatusAnchor(){
+  var span = document.getElementById('facturaStatus');
+  if (span) return span;
+  var input = document.getElementById('NumeroFactura');
+  if (!input) return null;
+
+  // 1) Intentar junto al label asociado
+  var label = document.querySelector('label[for="NumeroFactura"]');
+  span = document.createElement('span');
+  span.id = 'facturaStatus';
+  span.className = 'factura-status';
+  span.setAttribute('aria-live', 'polite');
+
+  try {
+    if (label) {
+      label.appendChild(span);
+      return span;
+    }
+  } catch(e){}
+
+  // 2) Si no hay label: intentar antes del input (a la par del título) o justo después
+  try {
+    input.insertAdjacentElement('beforebegin', span);
+    return span;
+  } catch(e){
+    try {
+      input.insertAdjacentElement('afterend', span);
+      return span;
+    } catch(e2){}
+  }
+  return null;
+}
+
+// Sobrescribir setFacturaStatus para asegurar que exista el ancla
+(function(){
+  var _origSet = (typeof setFacturaStatus === 'function') ? setFacturaStatus : null;
+  window.setFacturaStatus = function(kind, text, withSpinner){
+    var el = document.getElementById('facturaStatus') || ensureFacturaStatusAnchor();
+    if(!el) return;
+    el.className = 'factura-status ' + (kind || 'mute');
+    el.innerHTML = (withSpinner ? '<span class="spin" aria-hidden="true"></span>' : '') +
+                   '<span>' + (text || '') + '</span>';
+  };
+})();
+
+// Asegurar creación del ancla tempranamente
+document.addEventListener('DOMContentLoaded', ensureFacturaStatusAnchor);
+</script>
+
 </body>
 </html>
