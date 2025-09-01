@@ -287,7 +287,7 @@
     const SUPPORTED_IMAGE_TYPES=new Set(['image/jpeg','image/png','image/webp']);
     async function fileToOptimizedBase64(file,maxW=1600,maxH=1600,quality=0.7){ if(!file) throw new Error('Archivo inválido'); if(!SUPPORTED_IMAGE_TYPES.has(file.type)){ const e=new Error('Formato no soportado'); e.code='UNSUPPORTED_FORMAT'; e.type=file.type||'unknown'; throw e; } const dataUrl=await readFileAsDataURL(file); const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=dataUrl; }); const canvas=drawToCanvas(img,maxW,maxH); return canvas.toDataURL('image/jpeg',quality); }
 
-    async function handleImageInput(inputId){ const input=$(inputId); const file=input&&input.files&&input.files[0]; if(!file){ ImageState[inputId]=null; return; } const isRecent=(Date.now()-file.lastModified)<=48*3600*1000; if(!isRecent){ showError(input,'La foto debe ser ≤ 48 horas'); input.value=''; return; } try{ const optimized=await fileToOptimizedBase64(file,1600,1600,0.7); ImageState[inputId]=optimized; requestAnimationFrame(()=>{ const prev=$('preview_'+inputId); if(prev) prev.innerHTML='<img alt="" src="'+optimized+'">'; }); }catch(err){ if(err&&err.code==='UNSUPPORTED_FORMAT') showError(input,'Formato no soportado ('+(err.type||'')+'). Usa JPG/PNG/WebP.'); else showError(input,'No se pudo leer la imagen'); } }
+    async function handleImageInput(inputId){ const input=$(inputId); const file=input&&input.files&&input.files[0]; if(!file){ ImageState[inputId]=null; return; } const isRecent=(Date.now()-file.lastModified)<=48*3600*1000; if(!isRecent){ showError(input,'La foto debe ser ≤ 48 horas'); input.value=''; return; } try{ const optimized=await fileToOptimizedBase64(file, (typeof isMobile!=='undefined' && isMobile)?1200:1600, (typeof isMobile!=='undefined' && isMobile)?1200:1600, (typeof isMobile!=='undefined' && isMobile)?0.6:0.7); ImageState[inputId]=optimized; requestAnimationFrame(()=>{ const prev=$('preview_'+inputId); if(prev) prev.innerHTML='<img alt="" src="'+optimized+'">'; }); }catch(err){ if(err&&err.code==='UNSUPPORTED_FORMAT') showError(input,'Formato no soportado ('+(err.type||'')+'). Usa JPG/PNG/WebP.'); else showError(input,'No se pudo leer la imagen'); } }
 
     function validateForm(){ let ok=true; document.querySelectorAll('#form [required]').forEach(inp=>{ if(!inp.checkValidity()){ ok=false; showError(inp, inp.validationMessage); } else { showError(inp,''); } }); const ids=['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura']; for(const id of ids){ const el=$(id); if(!el.files||!el.files[0]){ ok=false; showError(el,'Requerido'); continue; } const f=el.files[0]; const recent=(Date.now()-f.lastModified)<=48*3600*1000; if(!recent){ ok=false; showError(el,'La foto debe ser ≤ 48 horas'); } } return ok; }
 
@@ -404,143 +404,51 @@
     function onSectorChange(){ const selSector=$('sector'), selPlaca=$('placa'), jefeInput=$('jefe'); const sector=selSector?selSector.value:''; const placas=(Catalogos.placasPorSector[sector]||[]).slice().sort(); setSelectOptions(selPlaca,placas,'Selecciona…'); if(selPlaca) selPlaca.disabled=placas.length===0; if(jefeInput) jefeInput.value=Catalogos.jefePorSector[sector]||''; }
 
     async function enviarReporte(){
-if(isSaving) return;
-      if(!validateForm()){ showToast('Completa los campos requeridos'); return; }
-      isSaving = true; setBusy(true);
-      let data, dd, filename, dedupeKey, resp;
-      try{
-        await waitForPdfMake();
-        data = getFormData();
-        dd   = buildDocDefinition(data, ImageState);
+  if (typeof isSaving !== 'undefined' && isSaving) return;
+  if (typeof validateForm === 'function' && !validateForm()) { 
+    if (typeof showToast === 'function') showToast('Completa los campos requeridos'); 
+    else alert('Completa los campos requeridos'); 
+    return; 
+  }
 
-        dedupeKey = ((data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
+  if (typeof setBusy === 'function') setBusy(true);
+  if (typeof isSaving === 'undefined') { window.isSaving = false; }
+  isSaving = true;
 
-        filename = ((data.Sector||'sector') + '_' + (data.Fecha||'fecha') + '_' + (data.NumeroFactura||'factura') + '.pdf')
-          .replace(/\s+/g, '_')
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^A-Za-z0-9._-]/g, '');
+  try {
+    if (typeof waitForPdfMake === 'function') { await waitForPdfMake(); }
+    const data = (typeof getFormData === 'function') ? getFormData() : {};
+    const dd   = (typeof buildDocDefinition === 'function') ? buildDocDefinition(data, (typeof ImageState !== 'undefined'? ImageState : undefined)) : {};
 
-        // === GUARDAR PRIMERO ===
-        showProgress('Guardando información...');
-        const b64 = await new Promise(function(resolve, reject){
-          try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
-          catch(err){ reject(err); }
-        });
+    const dedupeKey = ((data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
+    const filename  = ((data.Sector||'sector') + '_' + (data.Fecha||'fecha') + '_' + (data.NumeroFactura||'factura') + '.pdf')
+      .replace(/\s+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._-]/g,'');
 
-        resp = await postJSONWithRetry(
-          urlGuardarReporte,
-          {
-            Sector: data.Sector,
-            Placa: data.Placa,
-            Proceso: data.Proceso,
-            Nombre: data.Nombre,
-            Identidad: data.Identidad,
-            TotalGastado: data.TotalGastado,
-            LitrosConsumidos: data.LitrosConsumidos,
-            MotivoDelLlenado: data.MotivoDelLlenado,
-            Fecha: data.Fecha,
-            HorasDelViaje: data.HorasDelViaje,
-            KmActual: data.KmActual,
-            NombreComercio: data.NombreComercio,
-            NumeroFactura: data.NumeroFactura,
-            JefeInmediato: data.JefeInmediato,
-            pdf: b64,
-            filename: filename,
-            dedupeKey: dedupeKey
-          },
-          0,
-          20000
-        );
-        hideProgress('Información enviada correctamente');
+    // 1) Guarda primero (Sheet/Drive)
+    if (typeof doSave === 'function') {
+      await doSave(dd, data, filename, dedupeKey);
+    }
 
-        // Intentar obtener URL del archivo en Drive (para la opción "No")
-        const driveUrl = await obtenerFileUrlDespuesDeGuardar(resp, data.NumeroFactura);
+    // 2) Luego desencadena la descarga local
+    try { if (typeof pdfMake !== 'undefined') pdfMake.createPdf(dd).download(filename); } catch (e) {}
 
-        // === LUEGO DESCARGAR ===
-        try { pdfMake.createPdf(dd).download(filename); } catch (e) { console.warn('Descarga PDF falló:', e); }
-
-        // === MODAL DE CONFIRMACIÓN ===
-        if (typeof showToast === 'function') showToast('Reporte guardado correctamente');
-        if (typeof window.showConfirmDescargaModal === 'function') window.showConfirmDescargaModal(driveUrl);
-
-        // Actualizar preview
-        try { renderPdfPreview(dd); } catch(_){}
-
-      } catch (e) {
-        console.warn('Error en guardar:', e);
-        alert('Error al guardar el reporte. Inténtalo de nuevo.');
-      } finally {
-        setBusy(false);
-        isSaving = false;
-      }
+    if (typeof renderPdfPreview === 'function') { renderPdfPreview(dd); }
+  } catch (e) {
+    console && console.error && console.error('enviarReporte error', e);
+    alert('Error al guardar el reporte. Inténtalo de nuevo.');
+  } finally {
+    if (typeof setBusy === 'function') setBusy(false);
+    isSaving = false;
+  }
 }
+      
 
-
-    async function doSave(dd, data, filename, dedupeKey){
-      showProgress('Guardando información...');
-      const b64 = await new Promise(function(resolve, reject){
-        try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
-        catch(err){ reject(err); }
-      });
-      await postJSONWithRetry(
-        urlGuardarReporte,
-        {
-          Sector: data.Sector,
-          Placa: data.Placa,
-          Proceso: data.Proceso,
-          Nombre: data.Nombre,
-          Identidad: data.Identidad,
-          TotalGastado: data.TotalGastado,
-          LitrosConsumidos: data.LitrosConsumidos,
-          MotivoDelLlenado: data.MotivoDelLlenado,
-          Fecha: data.Fecha,
-          HorasDelViaje: data.HorasDelViaje,
-          KmActual: data.KmActual,
-          NombreComercio: data.NombreComercio,
-          NumeroFactura: data.NumeroFactura,
-          JefeInmediato: data.JefeInmediato,
-          pdf: b64,
-          filename: filename,
-          dedupeKey: dedupeKey
-        },
-        0,
-        20000
-      );
-      hideProgress('Información enviada correctamente');
-    }
-    async function obtenerFileUrlDespuesDeGuardar(resp, numeroFactura){
-      // Si el backend devuelve un campo de URL, úsalo
-      try{
-        if (resp && (resp.fileUrl || resp.file_url || resp.url || resp.file)) {
-          return resp.fileUrl || resp.file_url || resp.url || resp.file;
-        }
-      }catch(_){}
-      // Fallback: GET ?leerFacturas=true y buscar por Número de factura (última coincidencia)
-      try{
-        var base = (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar';
-        var getUrl = base.replace(/(\?.*)$/, '') + '?leerFacturas=true';
-        var r = await fetch(getUrl, { method:'GET' });
-        var txt = await r.text();
-        var arr = [];
-        try { arr = JSON.parse(txt) || []; } catch(_){ arr = []; }
-        if (Array.isArray(arr) && numeroFactura){
-          for (var i = arr.length-1; i >= 0; i--){
-            var it = arr[i] || {};
-            var nf = (it['NumeroFactura'] || it['Número de factura'] || it['NoFactura'] || it['Factura'] || '').toString().trim();
-            if (nf === (numeroFactura||'').toString().trim()){
-              for (var k in it){
-                var v = (it[k]||'').toString();
-                if (/^https?:\/\/(drive|docs)\.google\.com\//.test(v)) return v;
-              }
-            }
-          }
-        }
-      }catch(e){ console.warn('Fallback GET error:', e); }
-      return null;
-    }
-
-
-    function attachImageInputs(){ ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',function(){handleImageInput(id)},{passive:true}); }); }
+    function attachImageInputs(){
+  ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llego'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el){ el.addEventListener('change', function(){ handleImageInput(id); }, {passive:true}); }
+  });
+}
 
     document.addEventListener('DOMContentLoaded',function(){ attachImageInputs(); ['sector','sector_lista','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',schedulePreview); }); });
     window.addEventListener('load', async function(){ try{ await waitForPdfMake(); await cargarCatalogos(); $('btnPreview').disabled=false; $('btnEnviar').disabled=false; $('btnPreview').addEventListener('click',schedulePreview); $('btnEnviar').addEventListener('click',enviarReporte); $('sector')&&$('sector').addEventListener('change', onSectorChange); }catch(e){} });
@@ -798,57 +706,5 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
-
-<style>
-  /* Modal de confirmación de descarga */
-  #confirm-descarga-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999}
-  #confirm-descarga{background:#fff;max-width:480px;width:92%;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:18px 18px 14px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  #confirm-descarga h3{margin:0 0 8px;font-size:18px;font-weight:650}
-  #confirm-descarga p{margin:0 0 14px;color:#333}
-  #confirm-descarga .btns{display:flex;gap:10px;justify-content:flex-end}
-  #confirm-descarga button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
-  #confirm-descarga .btn-yes{background:#0ea5e9;color:#fff}
-  #confirm-descarga .btn-no{background:#e2e8f0;color:#111827}
-</style>
-
-<div id="confirm-descarga-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-descarga-title" style="display:none">
-  <div id="confirm-descarga">
-    <h3 id="confirm-descarga-title">¿El PDF se descargó?</h3>
-    <p>Si eliges <strong>Sí</strong>, se limpiará el formulario para un nuevo reporte. Si eliges <strong>No</strong>, abriremos la ubicación del archivo en Drive en una nueva pestaña.</p>
-    <div class="btns">
-      <button type="button" class="btn-no" id="btnNoDescargo">No</button>
-      <button type="button" class="btn-yes" id="btnSiDescargo">Sí</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  function showConfirmModal(fileUrl){
-    window.__lastDriveUrl = fileUrl || null;
-    var ov = document.getElementById('confirm-descarga-overlay');
-    if (ov) ov.style.display = 'flex';
-    setTimeout(function(){ try{ document.getElementById('btnSiDescargo').focus(); }catch(_){}} ,0);
-  }
-  function hideConfirmModal(){
-    var ov = document.getElementById('confirm-descarga-overlay');
-    if (ov) ov.style.display = 'none';
-  }
-  window.showConfirmDescargaModal = showConfirmModal;
-
-  document.addEventListener('DOMContentLoaded', function(){
-    var btnSi = document.getElementById('btnSiDescargo');
-    var btnNo = document.getElementById('btnNoDescargo');
-    if (btnSi) btnSi.addEventListener('click', function(){
-      hideConfirmModal(); try{ location.reload(); }catch(_){}
-    });
-    if (btnNo) btnNo.addEventListener('click', function(){
-      var url = window.__lastDriveUrl; hideConfirmModal();
-      if (url){ try{ window.open(url, '_blank'); }catch(e){ alert('No se pudo abrir el enlace del PDF en Drive.'); } }
-      else { alert('No pude localizar el enlace del PDF en Drive.'); }
-    });
-  });
-})();
-</script>
 </body>
 </html>
