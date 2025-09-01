@@ -56,6 +56,7 @@
   .factura-status{font-size:.9rem;font-weight:600;margin-left:.5rem;vertical-align:middle}
   .factura-status.ok{color:#16a34a}
   .factura-status.dup{color:#ef4444}
+  .factura-status.warn{color:#f59e0b}
   .factura-status.loading{color:#64748b;position:relative;padding-left:1.4rem}
   .factura-status.loading::before{
     content:"";width:1rem;height:1rem;border-radius:50%;
@@ -486,31 +487,23 @@
   })();
   </script>
 
-<!-- === script inyectado: validación asíncrona de Número de factura === -->
+<!-- === script inyectado: validación asíncrona de Número de factura (robusta) === -->
 <script id="factura-async-validator-script">
 (function(){
   try{
-    // Evitar doble inyección
     if (window.__facturaAsyncValidatorInjected__) return;
     window.__facturaAsyncValidatorInjected__ = true;
 
     var input = document.getElementById('factura');
     if(!input) return;
-
-    // Añadir <span> de estado al lado del label de "Número de factura"
     var label = document.querySelector('label[for="factura"]');
     var status = document.getElementById('factura_status');
     if(!status){
       status = document.createElement('span');
       status.id = 'factura_status';
       status.className = 'factura-status';
-      if(label){
-        label.appendChild(document.createTextNode(' '));
-        label.appendChild(status);
-      }else{
-        // si no hay label, lo ubicamos después del input
-        input.insertAdjacentElement('afterend', status);
-      }
+      if(label){ label.appendChild(document.createTextNode(' ')); label.appendChild(status); }
+      else{ input.insertAdjacentElement('afterend', status); }
     }else{
       status.classList.add('factura-status');
     }
@@ -520,31 +513,62 @@
       status.textContent = text || '';
     }
 
-    // Construir URL del doGet ?leerFacturas=true
-    // Si existe urlGuardarReporte en el scope, lo usamos.
-    var base = (typeof urlGuardarReporte === 'string' && urlGuardarReporte) ? urlGuardarReporte : '';
-    var urlGet = base ? (base + (base.indexOf('?') === -1 ? '?leerFacturas=true' : '&leerFacturas=true'))
-                      : '?leerFacturas=true'; // fallback (el deploy real debería fijar urlGuardarReporte)
+    // Siempre usamos URL relativa al WebApp actual para evitar CORS/config incorrectas
+    var urlGet = '?leerFacturas=true';
 
     var timer = null;
     var last = '';
+    var currentController = null;
+
+    // Utilidad: normalizar texto (quitar acentos y espacios)
+    function norm(s){
+      try{
+        return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+      }catch(_){ return String(s || '').toLowerCase().trim(); }
+    }
+
+    // Busca el campo de factura en un registro devuelto por doGet,
+    // tolerando encabezados distintos (NumeroFactura, Número de factura, Factura, etc.)
+    function extraerFactura(rec){
+      if(!rec || typeof rec !== 'object') return '';
+      // 1) claves conocidas
+      var cands = ['NumeroFactura','NúmeroFactura','Número de factura','Numero factura','Factura','factura','No. Factura','NoFactura'];
+      for(var i=0;i<cands.length;i++){
+        if(rec[cands[i]] != null) return String(rec[cands[i]]);
+      }
+      // 2) heurística por nombre de campo
+      for(var k in rec){
+        if(!Object.prototype.hasOwnProperty.call(rec,k)) continue;
+        var nk = norm(k).replace(/[^a-z]/g,'');
+        if(nk.indexOf('factura') !== -1) return String(rec[k]);
+      }
+      return '';
+    }
 
     async function consultar(valor){
       if(!valor){ setStatus('', ''); return; }
       setStatus('loading','Validando…');
       try{
-        var res = await fetch(urlGet, { method: 'GET' });
+        // Cancelar petición anterior si aún está en vuelo
+        if(currentController){ currentController.abort(); }
+        currentController = ('AbortController' in window) ? new AbortController() : null;
+
+        var res = await fetch(urlGet, { method: 'GET', signal: currentController ? currentController.signal : undefined });
+        if(!res.ok) throw new Error('HTTP ' + res.status);
         var lista = await res.json();
         var v = String(valor).trim();
         var dup = Array.isArray(lista) && lista.some(function(r){
-          var a = (r && (r.NumeroFactura!=null ? String(r.NumeroFactura) : String(r.factura||''))).trim();
+          var a = String(extraerFactura(r)).trim();
           return a === v;
         });
         if(dup){ setStatus('dup','Factura duplicada'); }
         else{ setStatus('ok','Factura aceptada'); }
       }catch(e){
-        // en caso de error de red, no bloqueamos el formulario
-        setStatus('', '');
+        // Mantener un mensaje visible para saber que falló la validación,
+        // pero permitir seguir trabajando.
+        setStatus('warn','Validación no disponible');
+      }finally{
+        currentController = null;
       }
     }
 
