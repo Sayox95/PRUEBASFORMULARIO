@@ -579,9 +579,9 @@ async function validarNumeroFactura(numero){
 function setupValidacionFactura(){
   const input = document.getElementById('NumeroFactura') || document.getElementById('factura');
   if(!input) return;
-  const onType = debounce(()=> validarNumeroFactura(input.value), 450);
+  const onType = debounce(()=> validarNumeroFactura_v4(input.value), 450);
   input.addEventListener('input', onType);
-  if (input.value) validarNumeroFactura(input.value);
+  if (input.value) validarNumeroFactura_v4(input.value);
 }
 
 document.addEventListener('DOMContentLoaded', setupValidacionFactura);
@@ -639,5 +639,51 @@ function ensureFacturaStatusAnchor(){
 document.addEventListener('DOMContentLoaded', ensureFacturaStatusAnchor);
 </script>
 
+
+<script>
+async function validarNumeroFactura_v4(numero){
+  const val = (numero || '').trim();
+  if(!val){
+    setFacturaStatus('mute','');
+    return;
+  }
+  const placaEl = document.getElementById('Placa') || document.getElementById('placa');
+  const fechaEl = document.getElementById('Fecha') || document.getElementById('fecha');
+  const placaVal = placaEl ? (placaEl.value || '').trim() : '';
+  let fechaVal = fechaEl ? (fechaEl.value || '').trim() : '';
+  if (fechaVal) {
+    var m1 = fechaVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m1) {
+      var d = m1[1].padStart(2,'0');
+      var m = m1[2].padStart(2,'0');
+      var y = m1[3];
+      fechaVal = y + '-' + m + '-' + d;
+    }
+  }
+  setFacturaStatus('mute','Validando…', true);
+  if (facturaCtrl) facturaCtrl.abort();
+  facturaCtrl = new AbortController();
+  try{
+    const resp = await postJSONTolerant(
+      VALIDACION_ENDPOINT,
+      { validarDuplicado: true, NumeroFactura: val, Placa: placaVal, Fecha: fechaVal },
+      { timeoutMs: 15000, signal: facturaCtrl.signal }
+    );
+    let isDup = false;
+    if (resp && typeof resp === 'object') {
+      if ('duplicado' in resp) isDup = !!resp.duplicado;
+      else if (Array.isArray(resp) && resp.length > 0) isDup = true;
+      else if (resp.status === 'DUPLICADO') isDup = true;
+    }
+    if (isDup) {
+      setFacturaStatus('err','Factura duplicada');
+    } else {
+      setFacturaStatus('ok','Factura aceptada');
+    }
+  } catch(e){
+    setFacturaStatus('warn','No se pudo validar ahora');
+  }
+}
+</script>
 </body>
 </html>
