@@ -582,10 +582,7 @@ async function validarFacturaSoloNumero(){
       setDuplicadaState(false);
     }
   }catch(e){
-    // Si el error es por cancelación (AbortController), no cambiamos el estado: mantenemos "Validando…"
-    var msg = (e && (e.name || e.message || e.toString())).toString();
-    if (/AbortError|aborted/i.test(msg)) { return; }
-    // Error real de red/servidor: mostramos aviso pero no bloqueamos
+    // Si no se pudo validar ahora, no bloquear envío para no frenar el flujo
     setFacturaStatus('warn','No se pudo validar ahora');
     setDuplicadaState(false);
   }
@@ -804,12 +801,20 @@ document.addEventListener('DOMContentLoaded', function(){
         hidePre();
         try { if (window.__lastDD && window.__lastFileName) { pdfMake.createPdf(window.__lastDD).download(window.__lastFileName); } } catch(e){ console.warn('Descarga PDF falló:', e); }
         showDownloadingToast();
-        setTimeout(function(){ try{ location.reload(); }catch(_){} }, 2600);
+        setTimeout(function(){
+          try {
+            var base = location.href.split('#')[0];
+            var url  = base + (base.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
+            location.replace(url);
+          } catch(_) {}
+        }, 2600);
       });
     }
   });
 })();
 </script>
+
+
 
 </body>
 </html>
