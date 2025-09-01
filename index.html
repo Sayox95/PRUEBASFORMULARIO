@@ -56,30 +56,8 @@
 .factura-status.err{color:#b00020}
 .factura-status.warn{color:#b26a00}
 .factura-status.mute{color:#6b7280}
-
-}
-
-
-.factura-status .spin{
-  width:14px;
-  height:14px;
-  border:2px solid currentColor;
-  border-right-color:transparent;
-  border-radius:50%;
-  display:inline-block;
-  margin-top:1px;                 /* en vez de translateY */
-  -webkit-animation:giro .8s linear infinite !important;
-  animation:giro .8s linear infinite !important;
-  will-change: transform;
-}
-@-webkit-keyframes giro{
-  from{ -webkit-transform: rotate(0deg); }
-  to  { -webkit-transform: rotate(360deg); }
-}
-@keyframes giro{
-  from{ transform: rotate(0deg); }
-  to  { transform: rotate(360deg); }
-}
+.factura-status .spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:giro .8s linear infinite;transform:translateY(1px)}
+@keyframes giro{to{transform:rotate(360deg) translateY(1px)}}
 
 </style>
 </head>
@@ -495,8 +473,7 @@ function setFacturaStatus(kind, text, withSpinner){
   var el = document.getElementById('facturaStatus');
   if(!el){ return; }
   el.className = 'factura-status ' + (kind||'mute');
-  el.innerHTML = (withSpinner?'<span class="spin" aria-hidden="true"></span>':'') + '<span>'+ (text||'') +'</span>'; 
-      if(withSpinner){ const s=el.querySelector('.spin'); if(s){ s.style.animation='none'; s.offsetHeight; s.style.animation=null; } }
+  el.innerHTML = (withSpinner?'<span class="spin" aria-hidden="true"></span>':'') + '<span>'+ (text||'') +'</span>';
 }
 async function postJSONTolerant(url, payload, opts){
   opts = opts || {}; var timeoutMs = opts.timeoutMs || 15000; var signal = opts.signal;
