@@ -134,7 +134,7 @@
         </div>
         <div class="grid cols-3">
           <div>
-            <label for="factura">Número de factura</label>
+            <label for="factura">Número de factura <span id="facturaStatus" class="factura-status" aria-live="polite"></span></label>
             <input id="factura" name="factura" required />
             <div class="error" id="err_factura"></div>
           </div>
@@ -469,5 +469,123 @@
 
   })();
   </script>
+
+<style>
+.factura-status {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  margin-left: .75rem;
+  font-size: .9rem;
+  font-weight: 600;
+}
+.factura-status.ok    { color: #0b8a3a; }
+.factura-status.warn  { color: #b26a00; }
+.factura-status.err   { color: #b00020; }
+.factura-status.mute  { color: #6b7280; }
+.factura-status .spin {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: giro .8s linear infinite;
+  transform: translateY(1px);
+}
+@keyframes giro { to { transform: rotate(360deg) translateY(1px); } }
+</style>
+
+<script>
+const VALIDACION_ENDPOINT = (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte)
+  ? urlGuardarReporte
+  : '/api/guardar';
+
+function debounce(fn, wait){
+  let t; return function(...args){
+    clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait);
+  };
+}
+
+function setFacturaStatus(kind, text, withSpinner=false){
+  const el = document.getElementById('facturaStatus');
+  if(!el) return;
+  el.className = 'factura-status ' + (kind || 'mute');
+  el.innerHTML = (withSpinner ? '<span class="spin" aria-hidden="true"></span>' : '') +
+                 '<span>' + (text || '') + '</span>';
+}
+
+async function postJSONTolerant(url, payload, {timeoutMs=12000, signal}={}){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), timeoutMs);
+  let mergedSignal = ctrl.signal;
+  if (signal) {
+    try { mergedSignal = AbortSignal.any([signal, ctrl.signal]); } catch(e) { mergedSignal = ctrl.signal; }
+  }
+  try{
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Cache-Control':'no-cache'},
+      body: JSON.stringify(payload),
+      signal: mergedSignal
+    });
+    clearTimeout(timer);
+    if(!res.ok) {
+      const txt = await res.text().catch(()=> '');
+      throw new Error('HTTP '+res.status+(txt?(' - '+txt.slice(0,200)):''));
+    }
+    const txt = await res.text();
+    try { return txt ? JSON.parse(txt) : { status:'OK' }; }
+    catch { return { status: 'OK', raw: txt }; }
+  } catch(e){
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+let facturaCtrl = null;
+
+async function validarNumeroFactura(numero){
+  const val = (numero || '').trim();
+  if(!val){
+    setFacturaStatus('mute','');
+    return;
+  }
+  setFacturaStatus('mute','Validando…', true);
+  if (facturaCtrl) facturaCtrl.abort();
+  facturaCtrl = new AbortController();
+  try{
+    const resp = await postJSONTolerant(
+      VALIDACION_ENDPOINT,
+      { validarDuplicado: true, NumeroFactura: val },
+      { timeoutMs: 15000, signal: facturaCtrl.signal }
+    );
+    let isDup = false;
+    if (resp && typeof resp === 'object') {
+      if ('duplicado' in resp) isDup = !!resp.duplicado;
+      else if (Array.isArray(resp) && resp.length > 0) isDup = true;
+      else if (resp.status === 'DUPLICADO') isDup = true;
+    }
+    if (isDup) {
+      setFacturaStatus('err','Factura duplicada');
+    } else {
+      setFacturaStatus('ok','Factura aceptada');
+    }
+  } catch(e){
+    setFacturaStatus('warn','No se pudo validar ahora');
+  }
+}
+
+function setupValidacionFactura(){
+  const input = document.getElementById('NumeroFactura');
+  if(!input) return;
+  const onType = debounce(()=> validarNumeroFactura(input.value), 450);
+  input.addEventListener('input', onType);
+  if (input.value) validarNumeroFactura(input.value);
+}
+
+document.addEventListener('DOMContentLoaded', setupValidacionFactura);
+</script>
+
 </body>
 </html>
