@@ -304,8 +304,47 @@
     function base64ToUint8Array(base64){ var bin=atob(base64); var len=bin.length; var bytes=new Uint8Array(len); for(var i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes; }
 
     function buildDocDefinition(data,img){
+  if (typeof window!=='undefined' && window.__logoBase64 && img && !img.logo) { img.logo = window.__logoBase64; }
+
       var hasLogo=!!img.logo;
-      var header={ columns:[ {width:120,alignment:'left',margin:[0,0,10,0],stack:[hasLogo?{image:img.logo,width:110}:{text:'UTCD',style:'brand'}]}, {width:'*',alignment:'center',stack:[{text:'DETALLE DE LA FACTURA DE COMBUSTIBLE',style:'tTitulo'}]}, {width:160,table:{widths:['*','*'],body:[[{text:'Código',style:'mLbl',alignment:'center'},{text:'CLS-PAU-F-19',alignment:'center'}],[{text:'Versión',style:'mLbl',alignment:'center'},{text:'1',alignment:'center'}],[{text:'Fecha',style:'mLbl',alignment:'center'},{text:'20/5/2025',alignment:'center'}]]},layout:{paddingLeft:function(){return 4},paddingRight:function(){return 4},paddingTop:function(){return 3},paddingBottom:function(){return 3}} } ], columnGap:10, margin:[0,0,0,6] };
+      
+var header = {
+  table: {
+    widths: [ 160, '*', 70, 90],
+    body: [
+      [
+        (img.logo
+          ? { rowSpan: 3, image: img.logo, fit:[140,40], alignment:'center', margin:[0,6,0,6] }
+          : { rowSpan: 3, text:'UTCD', style:'tH1', alignment:'center', margin:[0,8,0,8] }),
+        { rowSpan: 3, text:'DETALLE DE LA FACTURA DE COMBUSTIBLE', style:'tH1', bold:true, alignment:'center', margin:[0,10,0,10] },
+        { text:'Código', bold:true, alignment:'center' },
+        { text:String(data.Codigo||'CLS-PAU-F-19'), alignment:'center' }
+      ],
+      [
+        '', '',
+        { text:'Versión', bold:true, alignment:'center' },
+        { text:String(data.Version||'1'), alignment:'center' }
+      ],
+      [
+        '', '',
+        { text:'Fecha', bold:true, alignment:'center' },
+        { text:'20/5/2025', alignment:'center' }
+      ]
+    ]
+  },
+  layout: {
+    hLineWidth: function(){return 1;},
+    vLineWidth: function(){return 1;},
+    hLineColor: function(){return '#243045';},
+    vLineColor: function(){return '#243045';},
+    paddingLeft: function(){return 6;},
+    paddingRight: function(){return 6;},
+    paddingTop: function(){return 4;},
+    paddingBottom: function(){return 4;}
+  },
+  margin:[0,0,0,8]
+};
+
 
       var infoTable={ style:'tCampos', table:{ widths:[100,165], heights:function(row){ return row===5?110:(row===2||row===10?48:38); }, body:[ [{text:'Nombre Completo',style:'lbl'},data.Nombre||'' ], [{text:'No. Identidad',style:'lbl'},data.Identidad||'' ], [{text:'Firma del Colaborador',style:'lbl'},{text:'', margin:[0,10,0,6]}], [{text:'Tipo de Gestión',style:'lbl'},'Liquidación de gastos de combustible' ], [{text:'Total',style:'lbl'},(data.LitrosConsumidos?(String(data.LitrosConsumidos)+' L'):'') ], [{text:'Motivo del llenado de combustible',style:'lbl'}, { stack: [ {text:'Compra de Combustible al Vehículo', margin:[0,0,0,4]}, {text:['Para Labores de: ',{text:(data.ParaLabores||'')}], margin:[0,4,0,0]}, {text:(data.MotivoDelLlenado||''), margin:[0,4,0,0]}, {text:['Proceso: ',{text:(data.Proceso||'')}], margin:[0,4,0,0]} ] } ], [{text:'Fecha',style:'lbl'},data.Fecha||'' ], [{text:'Placa o VIN',style:'lbl'},data.Placa||'' ], [{text:'Observación',style:'lbl'},{stack:[{text:'SECTOR: '+(data.Sector||'')},{text:'KM: '+(data.KmActual||'')},{text:'FACTURA: '+(data.NumeroFactura||'')}]}], [{text:'Autorizado por Jefe Inmediato',style:'lbl'},(data.JefeInmediato||'') ], [{text:'Firma',style:'lbl'},{text:'', margin:[0,10,0,6]}] ] }, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 4},paddingRight:function(){return 4},paddingTop:function(){return 3},paddingBottom:function(){return 3}} };
 
@@ -328,7 +367,7 @@ var page2 = {
               stack: [
                 { text:'TABLERO ANTES DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_tablero_antes']
-                  ? { image: img['foto_tablero_antes'], fit: [230, 215], alignment:'center' }
+                  ? { image: img['foto_tablero_antes'], fit: [230, 200], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             },
@@ -336,7 +375,7 @@ var page2 = {
               stack: [
                 { text:'BOMBA DE COMBUSTIBLE 0', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_bomba']
-                  ? { image: img['foto_bomba'], fit: [230, 215], alignment:'center' }
+                  ? { image: img['foto_bomba'], fit: [230, 200], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             }
@@ -346,7 +385,7 @@ var page2 = {
               stack: [
                 { text:'TABLERO DESPUÉS DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_despues']
-                  ? { image: img['foto_despues'], fit: [230, 215], alignment:'center' }
+                  ? { image: img['foto_despues'], fit: [230, 200], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             },
@@ -355,7 +394,7 @@ var page2 = {
               stack: [
                 { text:'VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_frontal']
-                  ? { image: img['foto_frontal'], fit: [230, 215], alignment:'center' }
+                  ? { image: img['foto_frontal'], fit: [230, 200], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             }
@@ -365,7 +404,7 @@ var page2 = {
               stack: [
                 { text:'BOMBA DE COMBUSTIBLE LLENA', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_bomba_llenado']
-                  ? { image: img['foto_bomba_llenado'], fit: [230, 215], alignment:'center' }
+                  ? { image: img['foto_bomba_llenado'], fit: [230, 200], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             },
@@ -405,7 +444,7 @@ var page2 = {
         paddingTop: function(){ return 6; },
         paddingBottom: function(){ return 6; }
       },
-      margin:[0,8,0,0]
+      margin:[0,8,-4,0]
     }
 
   ],
@@ -1136,6 +1175,21 @@ async function validarFacturaSoloNumero(){
 })();
 </script>
 
+
+
+<script>
+const LOGO_URL_UTCD="https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Logo.png";
+document.addEventListener('DOMContentLoaded', async () => {
+  try{
+    const res = await fetch(LOGO_URL_UTCD, {mode:'cors'});
+    if(!res.ok) throw new Error(res.status);
+    const blob = await res.blob();
+    const fr = new FileReader();
+    fr.onload = () => { window.__logoBase64 = fr.result; };
+    fr.readAsDataURL(blob);
+  }catch(e){ console.warn('No se pudo cargar el logo UTCD:', e); }
+});
+</script>
 
 </body>
 </html>
