@@ -315,9 +315,103 @@
 
       function fotoCard(titulo,phKey){ return { stack:[ {text:titulo,style:'fotoLbl',alignment:'center',margin:[0,0,0,4]}, (img[phKey]?{image:img[phKey],width:170,alignment:'center'}:{text:'-',color:'#666',alignment:'center',margin:[0,30,0,30]}) ] }; }
 
-      var page2={ stack:[ {text:'FOTOGRAFÍAS',style:'tSub',margin:[0,0,0,8],alignment:'center'}, {columns:[ fotoCard('TABLERO ANTES DE LLENADO','foto_tablero_antes'), fotoCard('BOMBA DE COMBUSTIBLE','foto_bomba'), fotoCard('TABLERO DESPUÉS DE LLENADO','foto_despues') ],columnGap:12,margin:[0,4,0,16]}, {columns:[ fotoCard('BOMBA DE COMBUSTIBLE LLENA','foto_bomba_llenado'), fotoCard('VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO','foto_frontal'), fotoCard('FACTURA','foto_factura') ],columnGap:12} ], pageBreak:'after' };
+      
+var page2 = {
+  stack: [
+    { text: 'FOTOGRAFÍAS', style: 'tSub', alignment: 'center', margin:[0,0,0,8] },
+    {
+      table: {
+        widths: [260, 260],
+        body: [
+          [
+            {
+              stack: [
+                { text:'TABLERO ANTES DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                (img['foto_tablero_antes']
+                  ? { image: img['foto_tablero_antes'], fit: [230, 215], alignment:'center' }
+                  : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
+              ]
+            },
+            {
+              stack: [
+                { text:'BOMBA DE COMBUSTIBLE 0', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                (img['foto_bomba']
+                  ? { image: img['foto_bomba'], fit: [230, 215], alignment:'center' }
+                  : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
+              ]
+            }
+          ],
+          [
+            {
+              stack: [
+                { text:'TABLERO DESPUÉS DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                (img['foto_despues']
+                  ? { image: img['foto_despues'], fit: [230, 215], alignment:'center' }
+                  : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
+              ]
+            },
+            {
+              rowSpan: 2,
+              stack: [
+                { text:'VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                (img['foto_frontal']
+                  ? { image: img['foto_frontal'], fit: [230, 215], alignment:'center' }
+                  : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
+              ]
+            }
+          ],
+          [
+            {
+              stack: [
+                { text:'BOMBA DE COMBUSTIBLE LLENA', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                (img['foto_bomba_llenado']
+                  ? { image: img['foto_bomba_llenado'], fit: [230, 215], alignment:'center' }
+                  : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
+              ]
+            },
+            '' // celda vacía por rowSpan
+          ]
+        ]
+      },
+      layout: {
+        hLineWidth: function(){ return 1; },
+        vLineWidth: function(){ return 1; },
+        hLineColor: function(){ return '#243045'; },
+        vLineColor: function(){ return '#243045'; },
+        paddingLeft: function(){ return 6; },
+        paddingRight: function(){ return 6; },
+        paddingTop: function(){ return 6; },
+        paddingBottom: function(){ return 6; }
+      }
+    }
 
-      var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],alignment:'center'}, (img['foto_factura']?{image:img['foto_factura'],fit:[510,680],alignment:'center'}:{text:'Sin imagen de factura',alignment:'center',color:'#666'}) ] };
+    ,
+    {
+      table: {
+        widths: ['*','*','*'],
+        body: [[
+          { text: 'PLACA: ' + String(data.Placa||''), alignment:'center' },
+          { text: 'FECHA: ' + String(data.Fecha||''), alignment:'center' },
+          { text: 'FACTURA: ' + String(data.NumeroFactura||''), alignment:'center' }
+        ]]
+      },
+      layout: {
+        hLineWidth: function(){ return 1; },
+        vLineWidth: function(){ return 1; },
+        hLineColor: function(){ return '#243045'; },
+        vLineColor: function(){ return '#243045'; },
+        paddingLeft: function(){ return 6; },
+        paddingRight: function(){ return 6; },
+        paddingTop: function(){ return 6; },
+        paddingBottom: function(){ return 6; }
+      },
+      margin:[0,8,0,0]
+    }
+
+  ],
+  pageBreak: 'after'
+};
+var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],alignment:'center'}, (img['foto_factura']?{image:img['foto_factura'],fit:[510,680],alignment:'center'}:{text:'Sin imagen de factura',alignment:'center',color:'#666'}) ] };
 
       return { pageSize:'LETTER', pageMargins:[36,36,36,36], content:[page1,page2,page3], styles:{brand:{fontSize:18,bold:true},tTitulo:{fontSize:14,bold:true},mLbl:{bold:true},lbl:{bold:true},tCampos:{fontSize:10},tSub:{fontSize:12,bold:true},fotoLbl:{fontSize:9,italics:true,color:'#444'}}, defaultStyle:{fontSize:10} };
     }
