@@ -43,7 +43,7 @@
     #pdfJsContainer{background:#f4f5f7; padding:12px; display:block;}
     .pdfjs-page{display:block;margin:0 auto 12px;max-width:100%;height:auto;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}
     .thumbs{display:grid;gap:var(--space);grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
-    .thumb{border:1px dashed #335084;border-radius:.75rem;padding:.5rem;background:#0f172a;min-height:160px;display:grid;place-items:center}
+    .thumb{border:1px dashed #335084;border-radius:.75rem;padding:.5rem;background-color:#0f172a;min-height:160px;display:grid;place-items:center;background-position:center;background-size:contain;background-repeat:no-repeat}
     .thumb img{max-width:100%;height:auto;object-fit:contain;display:block}
     .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f2a1f;border:1px solid #1c7d57;color:#c8ffe7;padding:.85rem 1rem;border-radius:.75rem;box-shadow:0 10px 20px rgba(0,0,0,.35);display:none;z-index:50}
     @media print{@page{size:letter;margin:1.27cm}body{background:#fff;color:#000}.no-print{display:none !important}}
@@ -181,21 +181,21 @@
             <div class="picker-row"><button type="button" id="cam_foto_tablero_antes" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_tablero_antes" class="btn btn-sm">Elegir de galería</button></div>
 <input id="foto_tablero_antes" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_tablero_antes"></div>
-          <div class="thumb" id="preview_foto_tablero_antes"><span>Preview tablero antes</span></div>
+          <div class="thumb" id="preview_foto_tablero_antes" style="--guide-url:url('https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Tablero%20antes%20de%20llenado.png');background-image:linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), var(--guide-url);"><span>Preview tablero antes</span></div>
 </div>
           <div>
             <label for="foto_bomba">Foto bomba/contador</label>
             <div class="picker-row"><button type="button" id="cam_foto_bomba" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_bomba" class="btn btn-sm">Elegir de galería</button></div>
 <input id="foto_bomba" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_bomba"></div>
-          <div class="thumb" id="preview_foto_bomba"><span>Preview bomba</span></div>
+          <div class="thumb" id="preview_foto_bomba" style="--guide-url:url('https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Bomba%20en%20cero.png');background-image:linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), var(--guide-url);"><span>Preview bomba</span></div>
 </div>
           <div>
             <label for="foto_despues">Foto tablero después</label>
             <div class="picker-row"><button type="button" id="cam_foto_despues" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_despues" class="btn btn-sm">Elegir de galería</button></div>
 <input id="foto_despues" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_despues"></div>
-          <div class="thumb" id="preview_foto_despues"><span>Preview tablero después</span></div>
+          <div class="thumb" id="preview_foto_despues" style="--guide-url:url('https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Tablero%20antes%20de%20llenado.png');background-image:linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), var(--guide-url);"><span>Preview tablero después</span></div>
 </div>
         </div>
         <div class="grid cols-3">
@@ -204,21 +204,21 @@
             <div class="picker-row"><button type="button" id="cam_foto_bomba_llenado" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_bomba_llenado" class="btn btn-sm">Elegir de galería</button></div>
 <input id="foto_bomba_llenado" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_bomba_llenado"></div>
-          <div class="thumb" id="preview_foto_bomba_llenado"><span>Preview bomba llenado</span></div>
+          <div class="thumb" id="preview_foto_bomba_llenado" style="--guide-url:url('https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Bomba%20llena.png');background-image:linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), var(--guide-url);"><span>Preview bomba llenado</span></div>
 </div>
           <div>
             <label for="foto_frontal">Foto frontal vehículo</label>
             <div class="picker-row"><button type="button" id="cam_foto_frontal" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_frontal" class="btn btn-sm">Elegir de galería</button></div>
 <input id="foto_frontal" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_frontal"></div>
-          <div class="thumb" id="preview_foto_frontal"><span>Preview frontal</span></div>
+          <div class="thumb" id="preview_foto_frontal" style="--guide-url:url('https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Vista%20Frontal.png');background-image:linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), var(--guide-url);"><span>Preview frontal</span></div>
 </div>
           <div>
             <label for="foto_factura">Foto factura</label>
             <div class="picker-row"><button type="button" id="cam_foto_factura" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_factura" class="btn btn-sm">Elegir de galería</button></div>
 <input id="foto_factura" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_factura"></div>
-          <div class="thumb" id="preview_foto_factura"><span>Preview factura</span></div>
+          <div class="thumb" id="preview_foto_factura" style="--guide-url:url('https://raw.githubusercontent.com/Sayox95/Gastos-de-Combustible/refs/heads/main/imagenes/Factura.png');background-image:linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), var(--guide-url);"><span>Preview factura</span></div>
 </div>
         </div>
         <div class="actions">
