@@ -178,34 +178,40 @@
         <div class="grid cols-3">
           <div>
             <label for="foto_tablero_antes">Foto tablero antes</label>
-            <input id="foto_tablero_antes" type="file" accept="image/*" capture="environment" required />
+            <div class="picker-row"><button type="button" id="cam_foto_tablero_antes" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_tablero_antes" class="btn btn-sm">Elegir de galería</button></div>
+<input id="foto_tablero_antes" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_tablero_antes"></div>
           </div>
           <div>
             <label for="foto_bomba">Foto bomba/contador</label>
-            <input id="foto_bomba" type="file" accept="image/*" capture="environment" required />
+            <div class="picker-row"><button type="button" id="cam_foto_bomba" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_bomba" class="btn btn-sm">Elegir de galería</button></div>
+<input id="foto_bomba" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_bomba"></div>
           </div>
           <div>
             <label for="foto_despues">Foto tablero después</label>
-            <input id="foto_despues" type="file" accept="image/*" capture="environment" required />
+            <div class="picker-row"><button type="button" id="cam_foto_despues" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_despues" class="btn btn-sm">Elegir de galería</button></div>
+<input id="foto_despues" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_despues"></div>
           </div>
         </div>
         <div class="grid cols-3">
           <div>
             <label for="foto_bomba_llenado">Foto bomba llenado</label>
-            <input id="foto_bomba_llenado" type="file" accept="image/*" capture="environment" required />
+            <div class="picker-row"><button type="button" id="cam_foto_bomba_llenado" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_bomba_llenado" class="btn btn-sm">Elegir de galería</button></div>
+<input id="foto_bomba_llenado" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_bomba_llenado"></div>
           </div>
           <div>
             <label for="foto_frontal">Foto frontal vehículo</label>
-            <input id="foto_frontal" type="file" accept="image/*" capture="environment" required />
+            <div class="picker-row"><button type="button" id="cam_foto_frontal" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_frontal" class="btn btn-sm">Elegir de galería</button></div>
+<input id="foto_frontal" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_frontal"></div>
           </div>
           <div>
             <label for="foto_factura">Foto factura</label>
-            <input id="foto_factura" type="file" accept="image/*" capture="environment" required />
+            <div class="picker-row"><button type="button" id="cam_foto_factura" class="btn btn-sm">Tomar foto</button> <button type="button" id="gal_foto_factura" class="btn btn-sm">Elegir de galería</button></div>
+<input id="foto_factura" type="file" accept="image/*" style="display:none" required />
             <div class="error" id="err_foto_factura"></div>
           </div>
         </div>
@@ -351,13 +357,48 @@ var header = {
 };
 
 
-      var infoTable={ style:'tCampos', table:{ widths:[100,165], heights:function(row){ return row===5?110:(row===2||row===10?48:38); }, body:[ [{text:'Nombre Completo',style:'lbl'},data.Nombre||'' ], [{text:'No. Identidad',style:'lbl'},data.Identidad||'' ], [{text:'Firma del Colaborador',style:'lbl'},{text:'', margin:[0,10,0,6]}], [{text:'Tipo de Gestión',style:'lbl'},'Liquidación de gastos de combustible' ], [{text:'Total',style:'lbl'},(data.LitrosConsumidos?(String(data.LitrosConsumidos)+' L'):'') ], [{text:'Motivo del llenado de combustible',style:'lbl'}, { stack: [ {text:'Compra de Combustible al Vehículo', margin:[0,0,0,4]}, {text:['Para Labores de: ',{text:(data.ParaLabores||'')}], margin:[0,4,0,0]}, {text:(data.MotivoDelLlenado||''), margin:[0,4,0,0]}, {text:['Proceso: ',{text:(data.Proceso||'')}], margin:[0,4,0,0]} ] } ], [{text:'Fecha',style:'lbl'},data.Fecha||'' ], [{text:'Placa o VIN',style:'lbl'},data.Placa||'' ], [{text:'Observación',style:'lbl'},{stack:[{text:'SECTOR: '+(data.Sector||'')},{text:'KM: '+(data.KmActual||'')},{text:'FACTURA: '+(data.NumeroFactura||'')}]}], [{text:'Autorizado por Jefe Inmediato',style:'lbl'},(data.JefeInmediato||'') ], [{text:'Firma',style:'lbl'},{text:'', margin:[0,10,0,6]}] ] }, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 4},paddingRight:function(){return 4},paddingTop:function(){return 3},paddingBottom:function(){return 3}} };
+      var infoTable={ style:'tCampos', table:{ widths:[100,165], heights:function(row){ return row===5?110:(row===2||row===10?48:38); }, body:[ [{text:'Nombre Completo',style:'lbl'},data.Nombre||'' ], [{text:'No. Identidad',style:'lbl'},data.Identidad||'' ], [{text:'Firma del Colaborador',style:'lbl'},{text:'', margin:[0,10,0,6]}], [{text:'Tipo de Gestión',style:'lbl'},'Liquidación de gastos de combustible' ], [{text:'Total',style:'lbl'},(data.LitrosConsumidos?(String(data.LitrosConsumidos)+' L'):'') ], [{text:'Motivo del llenado de combustible',style:'lbl'}, { stack: [ {text:'Compra de Combustible al Vehículo', margin:[0,0,0,5]}, {text:['Para Labores de: ',{text:(data.ParaLabores||'')}], margin:[0,4,0,0]}, {text:(data.MotivoDelLlenado||''), margin:[0,4,0,0]}, {text:['Proceso: ',{text:(data.Proceso||'')}], margin:[0,4,0,0]} ] } ], [{text:'Fecha',style:'lbl'},data.Fecha||'' ], [{text:'Placa o VIN',style:'lbl'},data.Placa||'' ], [{text:'Observación',style:'lbl'},{stack:[{text:'SECTOR: '+(data.Sector||'')},{text:'KM: '+(data.KmActual||'')},{text:'FACTURA: '+(data.NumeroFactura||'')}]}], [{text:'Autorizado por Jefe Inmediato',style:'lbl'},(data.JefeInmediato||'') ], [{text:'Firma',style:'lbl'},{text:'', margin:[0,10,0,6]}] ] }, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 4},paddingRight:function(){return 4},paddingTop:function(){return 3},paddingBottom:function(){return 3}} };
 
       var cuadroFacturaGuia={ table:{widths:[230],body:[[{text:'Pegar Factura Original en este Espacio',alignment:'center',italics:true,color:'#666'}]]}, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 6},paddingRight:function(){return 6},paddingTop:function(){return 300},paddingBottom:function(){return 300}}, margin:[0,6,10,0] };
 
       var page1={ stack:[ header, { columns:[ {width:230,stack:[cuadroFacturaGuia]}, {width:'*',stack:[infoTable],margin:[0,6,12,0]} ], columnGap:26 } ], pageBreak:'after' };
 
-      function fotoCard(titulo,phKey){ return { stack:[ {text:titulo,style:'fotoLbl',alignment:'center',margin:[0,0,0,4]}, (img[phKey]?{image:img[phKey],width:170,alignment:'center'}:{text:'-',color:'#666',alignment:'center',margin:[0,30,0,30]}) ] }; }
+// === Helper: reformat 'Observación' value into multi-line Sector/KM/Factura ===
+function _reformatObservacion(node, data){
+  if (!node || typeof node !== 'object') return;
+  try{
+    if (node.table && Array.isArray(node.table.body)){
+      for (const row of node.table.body){
+        if (Array.isArray(row)){
+          for (let i=0;i<row.length;i++){
+            const cell = row[i];
+            const label = cell && (cell.text || cell.stack && cell.stack[0] && cell.stack[0].text);
+            if (label && (label === 'Observación' || label === 'Observacion')){
+              // next cell holds the original text; replace with multiline text
+              const valCellIdx = i+1;
+              if (row[valCellIdx] !== undefined){
+                row[valCellIdx] = {
+                  stack: [
+    { text: 'Sector: ' + String(data.Sector||''),  margin:[0,0,0,5] },
+    { text: 'KM: '     + String(data.KmActual||''), margin:[0,0,0,5] },
+    { text: 'Factura: '+ String(data.NumeroFactura||'') }
+  ]
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+    if (Array.isArray(node.stack)) node.stack.forEach(n => _reformatObservacion(n, data));
+    if (Array.isArray(node.columns)) node.columns.forEach(n => _reformatObservacion(n, data));
+  }catch(_){}
+}
+
+_reformatObservacion(page1, data);
+
+
+      function fotoCard(titulo,phKey){ return { stack:[ {text:titulo,style:'fotoLbl',alignment:'center',margin:[0,0,0,5]}, (img[phKey]?{image:img[phKey],width:170,alignment:'center'}:{text:'-',color:'#666',alignment:'center',margin:[0,30,0,30]}) ] }; }
 
       
 var page2 = {
@@ -370,7 +411,7 @@ var page2 = {
           [
             {
               stack: [
-                { text:'TABLERO ANTES DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                { text:'TABLERO ANTES DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,5] },
                 (img['foto_tablero_antes']
                   ? { image: img['foto_tablero_antes'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
@@ -378,7 +419,7 @@ var page2 = {
             },
             {
               stack: [
-                { text:'BOMBA DE COMBUSTIBLE 0', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                { text:'BOMBA DE COMBUSTIBLE 0', style:'tSub', alignment:'center', margin:[0,0,0,5] },
                 (img['foto_bomba']
                   ? { image: img['foto_bomba'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
@@ -388,7 +429,7 @@ var page2 = {
           [
             {
               stack: [
-                { text:'TABLERO DESPUÉS DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                { text:'TABLERO DESPUÉS DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,5] },
                 (img['foto_despues']
                   ? { image: img['foto_despues'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
@@ -397,7 +438,7 @@ var page2 = {
             {
               rowSpan: 2,
               stack: [
-                { text:'VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                { text:'VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO', style:'tSub', alignment:'center', margin:[0,0,0,5] },
                 (img['foto_frontal']
                   ? { image: img['foto_frontal'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
@@ -407,7 +448,7 @@ var page2 = {
           [
             {
               stack: [
-                { text:'BOMBA DE COMBUSTIBLE LLENA', style:'tSub', alignment:'center', margin:[0,0,0,4] },
+                { text:'BOMBA DE COMBUSTIBLE LLENA', style:'tSub', alignment:'center', margin:[0,0,0,5] },
                 (img['foto_bomba_llenado']
                   ? { image: img['foto_bomba_llenado'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
@@ -1247,6 +1288,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.addEventListener('DOMContentLoaded', loadProcesos);
 })();
+
+
+function bindDualPicker(baseId){
+  var input = document.getElementById(baseId);
+  var cam   = document.getElementById('cam_' + baseId);
+  var gal   = document.getElementById('gal_' + baseId);
+  if(!input) return;
+  if(cam){
+    cam.addEventListener('click', function(){
+      input.setAttribute('capture','environment');
+      input.value = '';
+      input.click();
+    }, {passive:true});
+  }
+  if(gal){
+    gal.addEventListener('click', function(){
+      input.removeAttribute('capture');
+      input.value = '';
+      input.click();
+    }, {passive:true});
+  }
+}
+document.addEventListener('DOMContentLoaded', function(){
+  ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura']
+    .forEach(function(id){ bindDualPicker(id); });
+});
+
 </script>
 
 
