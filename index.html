@@ -113,7 +113,7 @@
             <div class="error" id="err_nombre"></div>
           </div>
           <div>
-            <label for="identidad">Identidad</label>
+            <label for="identidad">Identidad</label> <span id=\"err_identidad_lbl\" class=\"hint\" style=\"margin-left:.5rem;font-size:.9em;color:#b45309\"></span>
             <input id="identidad" name="identidad" placeholder="0000-0000-00000" required pattern="\d{4}-\d{4}-\d{5}" />
             <div class="error" id="err_identidad"></div>
           </div>
@@ -142,13 +142,13 @@
         </div>
         <div class="grid cols-3">
           <div>
-            <label for="total">Total gastado (moneda)</label>
-            <input id="total" name="total" type="number" min="0" step="0.01" required />
+            <label for="total">Total gastado (moneda)</label> <span id="err_total_lbl" class="hint" style="margin-left:.5rem;font-size:.9em;color:#b45309"></span>
+            <input id="total" name="total" type="text" min="0" step="0.01" required / inputmode="decimal">
             <div class="error" id="err_total"></div>
           </div>
           <div>
-            <label for="litros">Litros consumidos</label>
-            <input id="litros" name="litros" type="number" min="0" step="0.01" required />
+            <label for="litros">Litros consumidos</label> <span id="err_litros_lbl" class="hint" style="margin-left:.5rem;font-size:.9em;color:#b45309"></span>
+            <input id="litros" name="litros" type="text" min="0" step="0.01" required / inputmode="decimal">
             <div class="error" id="err_litros"></div>
           </div>
           <div>
@@ -168,17 +168,7 @@
             <input id="nombre_comercio" name="nombre_comercio" required />
             <div class="error" id="err_nombre_comercio"></div>
           </div>
-          <div>
-            <label for="sector_lista">Sector (lista opcional)</label>
-            <select id="sector_lista" name="sector_lista">
-              <option value="">Selecciona…</option>
-              <option>Norte</option>
-              <option>Sur</option>
-              <option>Este</option>
-              <option>Oeste</option>
-            </select>
-          </div>
-        </div>
+</div>
         <hr style="border-color:#223052;opacity:.5" />
         <div class="grid cols-3">
           <div>
@@ -270,6 +260,22 @@
     function trimUpper(v){ return (v||'').trim().toUpperCase(); }
     function trimAny(v){ return (v||'').trim(); }
 
+    // Normaliza números con separadores a formato '1234.56' para guardar
+    
+    function normalizeNumberForSave(v){
+      v = (v==null) ? '' : String(v);
+      v = v.replace(/\s+/g, '');
+      v = v.replace(/,/g,''); // quitar comas
+      var first = v.indexOf('.');
+      if (first !== -1){
+        var intPart = v.slice(0, first).replace(/\./g,'');
+        var fracPart = v.slice(first+1).replace(/\./g,'');
+        return intPart + (fracPart ? ('.' + fracPart) : '');
+      }
+      return v.replace(/\./g,''); // solo enteros
+    }
+    
+    
     function pdfEmbedPodriaFallar(){
       const ua=navigator.userAgent||navigator.vendor||'';
       const iOS=/iPad|iPhone|iPod/i.test(ua);
@@ -291,7 +297,7 @@
 
     function validateForm(){ let ok=true; document.querySelectorAll('#form [required]').forEach(inp=>{ if(!inp.checkValidity()){ ok=false; showError(inp, inp.validationMessage); } else { showError(inp,''); } }); const ids=['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura']; for(const id of ids){ const el=$(id); if(!el.files||!el.files[0]){ ok=false; showError(el,'Requerido'); continue; } const f=el.files[0]; const recent=(Date.now()-f.lastModified)<=48*3600*1000; if(!recent){ ok=false; showError(el,'La foto debe ser ≤ 48 horas'); } } return ok; }
 
-    function getFormData(){ return { Sector: trimAny($('sector').value||$('sector_lista').value), Placa: trimUpper($('placa').value), Proceso: trimAny($('proceso').value), Nombre: trimAny($('nombre').value), Identidad: trimAny($('identidad').value), TotalGastado: trimAny($('total').value), LitrosConsumidos: trimAny($('litros').value), MotivoDelLlenado: trimAny($('motivo').value), Fecha: trimAny($('fecha').value), HorasDelViaje: trimAny($('horas').value), KmActual: trimAny($('km').value), NumeroFactura: trimAny($('factura').value), NombreComercio: trimAny($('nombre_comercio').value), JefeInmediato: trimAny(($('jefe').value)||'') }; }
+    function getFormData(){ return { Sector: trimAny($('sector').value), Placa: trimUpper($('placa').value), Proceso: trimAny($('proceso').value), Nombre: trimAny($('nombre').value), Identidad: trimAny($('identidad').value), TotalGastado: normalizeNumberForSave($('total').value), LitrosConsumidos: normalizeNumberForSave($('litros').value), MotivoDelLlenado: trimAny($('motivo').value), Fecha: trimAny($('fecha').value), HorasDelViaje: trimAny($('horas').value), KmActual: trimAny($('km').value), NumeroFactura: trimAny($('factura').value), NombreComercio: trimAny($('nombre_comercio').value), JefeInmediato: trimAny(($('jefe').value)||'') }; }
 
     function waitForPdfMake(timeout){ timeout=timeout||12000; return new Promise(function(resolve,reject){ var t0=Date.now(); (function check(){ if(window.pdfMake && typeof window.pdfMake.createPdf==='function') return resolve(window.pdfMake); if(Date.now()-t0>timeout) return reject(new Error('pdfMake no cargó')); setTimeout(check,30); })(); }); }
 
@@ -478,7 +484,7 @@
 
     function attachImageInputs(){ ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',function(){handleImageInput(id)},{passive:true}); }); }
 
-    document.addEventListener('DOMContentLoaded',function(){ attachImageInputs(); ['sector','sector_lista','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',schedulePreview); }); });
+    document.addEventListener('DOMContentLoaded',function(){ attachImageInputs(); ['sector','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',schedulePreview); }); });
     window.addEventListener('load', async function(){ try{ await waitForPdfMake(); await cargarCatalogos(); $('btnPreview').disabled=false; $('btnEnviar').disabled=false; $('btnPreview').addEventListener('click',schedulePreview); $('btnEnviar').addEventListener('click',enviarReporte); $('sector')&&$('sector').addEventListener('change', onSectorChange); }catch(e){} });
     window.addEventListener('beforeunload',function(){ if(window.lastBlobUrl) URL.revokeObjectURL(window.lastBlobUrl); });
 
@@ -607,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!btn) return;
     var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
     var dup = !!window.__facturaDuplicada;
-    var complete = isFacturaCompletaLocal();
+    var complete = (isFacturaCompletaLocal() && (typeof isIdentidadCompletaLocal==='function' ? isIdentidadCompletaLocal() : true));
     btn.disabled = isSaving || dup || !complete;
   };
   document.addEventListener('DOMContentLoaded', function(){
@@ -699,6 +705,93 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 })();
 </script>
+<script>
+// ===== Máscara para Identidad: EXACTA 0000-0000-00000 (13 dígitos, 15 chars con guiones) =====
+(function(){
+  function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
+  function formatIdentidad(digits){
+    var d = (digits||'').slice(0,13);
+    var g1 = d.slice(0,4), g2 = d.slice(4,8), g3 = d.slice(8,13);
+    var out = g1;
+    if(g2) out += (out?'-':'') + g2;
+    if(g3) out += (out?'-':'') + g3;
+    return out;
+  }
+  function caretFromDigitIndexId(formatted, digitCount){
+    var count = 0;
+    for (var i=0;i<formatted.length;i++){
+      if (/\d/.test(formatted[i])) count++;
+      if (count >= digitCount) return i+1;
+    }
+    return formatted.length;
+  }
+  function applyIdMaskAndCaret(input){
+    var start = input.selectionStart || 0;
+    var digitsBefore = (input.value.slice(0,start).match(/\d/g)||[]).length;
+    var formatted = formatIdentidad(onlyDigits(input.value));
+    if (formatted !== input.value) input.value = formatted;
+    var newPos = caretFromDigitIndexId(formatted, digitsBefore);
+    try { input.setSelectionRange(newPos, newPos); } catch(e){}
+    return formatted;
+  }
+  function isIdentidadCompletaLocal(){
+    var el = document.getElementById('identidad');
+    return !!(el && /^\d{4}-\d{4}-\d{5}$/.test(el.value||''));
+  }
+  function updateErrIdentidad(){
+    var el = document.getElementById('identidad');
+    var box = document.getElementById('err_identidad_lbl') || document.getElementById('err_identidad');
+    if (!el || !box) return;
+    var digits = (el.value.match(/\d/g)||[]).length;
+    if (digits === 0){
+      box.textContent = '';
+      return;
+    }
+    if (digits < 13){
+      var faltan = 13 - digits;
+      box.textContent = (faltan === 1) ? 'Falta 1 de 13 dígitos' : ('Faltan ' + faltan + ' de 13 dígitos');
+    } else {
+      // Completo
+      box.textContent = '';
+    }
+  }
+  function initIdentidadMask(input){
+    if(!input) return;
+    input.setAttribute('inputmode','numeric');
+    input.setAttribute('autocomplete','off');
+    input.setAttribute('autocorrect','off');
+    input.setAttribute('spellcheck','false');
+    input.setAttribute('minlength','15');
+    input.setAttribute('maxlength','15');
+    input.setAttribute('pattern','\\d{4}-\\d{4}-\\d{5}');
+    if(!input.getAttribute('placeholder')) input.setAttribute('placeholder','0000-0000-00000');
+
+    if (input.value) applyIdMaskAndCaret(input);
+    updateErrIdentidad();
+
+    input.addEventListener('input', function(){
+      applyIdMaskAndCaret(input);
+      updateErrIdentidad();
+      if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+    }, {passive:false});
+
+    input.addEventListener('blur', function(){
+      applyIdMaskAndCaret(input);
+      updateErrIdentidad();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var el = document.getElementById('identidad');
+    initIdentidadMask(el);
+    if (typeof updateEnviarEnabled === 'function') updateEnviarEnabled();
+  });
+
+  // Exponer helper para el botón Enviar
+  window.isIdentidadCompletaLocal = isIdentidadCompletaLocal;
+})();
+</script>
+
 <script>
 // ===== Validación en vivo de Número de factura (solo por número). Bloquea "Enviar" si es duplicada. =====
 function getValidacionEndpoint(){
@@ -822,5 +915,133 @@ async function validarFacturaSoloNumero(){
   }
 })();
 </script>
+
+
+
+<script>
+(function(){
+  // === Helpers de número (US: decimal '.' y miles ',') ===
+  function clampUS(str, maxDec){
+    var s = String(str||'').trim();
+    s = s.replace(/,/g,'').replace(/[^0-9.]/g,'');
+    var first = s.indexOf('.');
+    if (first !== -1){
+      var intPart = s.slice(0, first).replace(/\./g,'');
+      var fracPart = s.slice(first+1).replace(/\./g,'');
+      if (maxDec >= 0) fracPart = fracPart.slice(0, maxDec);
+      return intPart + '.' + fracPart;
+    } else {
+      return s.replace(/\./g,'');
+    }
+  }
+  function toNumberUS(str){
+    if (str == null) return NaN;
+    var s = String(str);
+    s = s.replace(/,/g,'');
+    var n = parseFloat(s);
+    return isNaN(n) ? NaN : n;
+  }
+  function formatPrettyUS(n, decimals){
+    if (!isFinite(n)) return '';
+    try {
+      return n.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: decimals||0});
+    } catch(_){
+      return n.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: decimals||0});
+    }
+  }
+
+  function bindMaxValidation(inputId, spanId, max, opts){
+    opts = opts || {}; var decimals = (opts.decimals!=null?opts.decimals:2); var fixedOnBlur = !!opts.fixedOnBlur;
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var span  = document.getElementById(spanId);
+    var decimals = 2;
+
+    if (span && !span.textContent) span.textContent = 'Máximo ' + max.toLocaleString('en-US');
+
+    var onInput = function(forceFormat){
+      var cleaned = clampUS(input.value, decimals);
+      if (cleaned === '') {
+        input.value = '';
+        if (span) span.textContent = 'Máximo ' + max.toLocaleString('en-US');
+        if (typeof window.updateEnviarEnabled === 'function') {
+          if (inputId.toLowerCase().includes('litro')) window.__overMaxLitros = false;
+          else window.__overMaxTotal = false;
+          window.updateEnviarEnabled();
+        }
+        return;
+      }
+      var trailingSep = /\.$/.test(cleaned);
+      var parts = cleaned.split('.');
+      var fracLen = parts[1] ? parts[1].length : 0;
+
+      var num = toNumberUS(cleaned);
+      var ok = isFinite(num) && num <= max && num >= 0;
+
+      if (!forceFormat && (trailingSep || fracLen > 0)){
+        input.value = cleaned;
+      } else {
+        input.value = formatPrettyUS(num, decimals);
+      }
+
+      if (span) span.textContent = ok ? ('Máximo ' + max.toLocaleString('en-US'))
+                                      : ('Excede el máximo ' + max.toLocaleString('en-US'));
+
+      if (typeof window.updateEnviarEnabled === 'function') {
+        window.__overMaxTotal  = window.__overMaxTotal  || false;
+        window.__overMaxLitros = window.__overMaxLitros || false;
+        if (inputId.toLowerCase().includes('litro')) window.__overMaxLitros = !ok;
+        else window.__overMaxTotal = !ok;
+        window.updateEnviarEnabled();
+      } else {
+        var btn = document.getElementById('btnEnviar') || document.querySelector('[type="submit"]');
+        if (btn) btn.disabled = btn.disabled || !ok;
+      }
+    };
+
+    var onBlur = function(){
+      var cl = clampUS(input.value, decimals);
+      if (cl === '') { onInput(true); return; }
+      var num = toNumberUS(cl);
+      if (isFinite(num)){
+        if (fixedOnBlur){
+          try { input.value = num.toLocaleString('en-US', {minimumFractionDigits: decimals, maximumFractionDigits: decimals}); }
+          catch(_){ input.value = formatPrettyUS(num, decimals); }
+        } else {
+          input.value = formatPrettyUS(num, decimals);
+        }
+      }
+      onInput(true);
+    };
+
+    input.setAttribute('inputmode','decimal');
+    input.setAttribute('autocomplete','off');
+    input.addEventListener('input', function(){ onInput(false); }, {passive:true});
+    input.addEventListener('blur', onBlur);
+    onInput(true);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    bindMaxValidation('total',  'err_total_lbl',  5000, {decimals:2, fixedOnBlur:true});
+    bindMaxValidation('litros', 'err_litros_lbl', 250,  {decimals:2, fixedOnBlur:false});
+  });
+
+  (function(){
+    var prev = window.updateEnviarEnabled;
+    window.updateEnviarEnabled = function(){
+      var btn = document.getElementById('btnEnviar') || document.querySelector('[type="submit"]');
+      var dup = !!window.__facturaDuplicada;
+      var complete = (typeof isFacturaCompletaLocal==='function' ? isFacturaCompletaLocal() : true)
+                  && (typeof isIdentidadCompletaLocal==='function' ? isIdentidadCompletaLocal() : true);
+      var overMax = !!window.__overMaxTotal || !!window.__overMaxLitros;
+      var enabled = !dup && complete && !overMax;
+      if (btn) btn.disabled = !enabled;
+      if (typeof prev === 'function') try{ prev(); }catch(_){}
+    };
+  })();
+})();
+</script>
+
+
 </body>
 </html>
