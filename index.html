@@ -21,7 +21,7 @@
     .app{max-width:1024px;margin:0 auto;display:grid;gap:var(--space-lg)}
     .card{background:#0f172a;border:1px solid #2a3a5a;border-radius:var(--radius);padding:var(--space-lg)}
     .grid{display:grid;gap:var(--space)}
-    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.span-2{grid-column:1/-1}
     .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
     @media (max-width:900px){.grid.cols-3{grid-template-columns:1fr}}
     @media (max-width:700px){.grid.cols-2{grid-template-columns:1fr}}
@@ -74,6 +74,8 @@
 }
 @keyframes factura-spin{to{transform:translateY(-50%) rotate(360deg);}}
 
+
+.form-grid textarea{width:100%; min-height:3.25rem; padding:0.5rem; border:1px solid #cbd5e1; border-radius:0.5rem;}
 </style>
 </head>
 <body>
@@ -95,7 +97,10 @@
           </div>
           <div>
             <label for="proceso">Proceso</label>
-            <input id="proceso" name="proceso" placeholder="Ej. Recolección" required />
+<select id="proceso" name="proceso" required>
+  <option value="" selected disabled>Cargando procesos…</option>
+</select>
+
             <div class="error" id="err_proceso"></div>
           </div>
           <div>
@@ -151,9 +156,9 @@
             <input id="litros" name="litros" type="text" min="0" step="0.01" required / inputmode="decimal">
             <div class="error" id="err_litros"></div>
           </div>
-          <div>
+          <div class="span-2">
             <label for="motivo">Motivo del llenado</label>
-            <input id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required />
+            <textarea  id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required / rows="4" placeholder="Explique brevemente..." style="resize:vertical"></textarea>
             <div class="error" id="err_motivo"></div>
           </div>
         </div>
@@ -367,7 +372,7 @@ var page2 = {
               stack: [
                 { text:'TABLERO ANTES DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_tablero_antes']
-                  ? { image: img['foto_tablero_antes'], fit: [230, 200], alignment:'center' }
+                  ? { image: img['foto_tablero_antes'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             },
@@ -375,7 +380,7 @@ var page2 = {
               stack: [
                 { text:'BOMBA DE COMBUSTIBLE 0', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_bomba']
-                  ? { image: img['foto_bomba'], fit: [230, 200], alignment:'center' }
+                  ? { image: img['foto_bomba'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             }
@@ -385,7 +390,7 @@ var page2 = {
               stack: [
                 { text:'TABLERO DESPUÉS DE LLENADO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_despues']
-                  ? { image: img['foto_despues'], fit: [230, 200], alignment:'center' }
+                  ? { image: img['foto_despues'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             },
@@ -394,7 +399,7 @@ var page2 = {
               stack: [
                 { text:'VISTA FRONTAL DEL VEHÍCULO / VIN CON VEHICULO', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_frontal']
-                  ? { image: img['foto_frontal'], fit: [230, 200], alignment:'center' }
+                  ? { image: img['foto_frontal'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             }
@@ -404,7 +409,7 @@ var page2 = {
               stack: [
                 { text:'BOMBA DE COMBUSTIBLE LLENA', style:'tSub', alignment:'center', margin:[0,0,0,4] },
                 (img['foto_bomba_llenado']
-                  ? { image: img['foto_bomba_llenado'], fit: [230, 200], alignment:'center' }
+                  ? { image: img['foto_bomba_llenado'], fit: [230, 190], alignment:'center' }
                   : { text:'-', alignment:'center', color:'#666', margin:[0,60,0,60] })
               ]
             },
@@ -669,6 +674,8 @@ document.addEventListener('DOMContentLoaded', function(){
   #downloadingToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f1525;border:1px solid #213154;color:#eaf0f8;padding:.85rem 1rem;border-radius:.75rem;box-shadow:0 10px 20px rgba(0,0,0,.35);display:none;z-index:50}
   .spinner-mini{display:inline-block;vertical-align:-2px;width:14px;height:14px;border:2px solid #93c5fd;border-top-color:#1d4ed8;border-radius:50%;margin-right:8px;animation:spin-mini 0.9s linear infinite}
   @keyframes spin-mini{to{transform:rotate(360deg)}}
+
+.form-grid textarea{width:100%; min-height:3.25rem; padding:0.5rem; border:1px solid #cbd5e1; border-radius:0.5rem;}
 </style>
 
 <!-- Modal 1: Se descargará el PDF -->
@@ -1190,6 +1197,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   }catch(e){ console.warn('No se pudo cargar el logo UTCD:', e); }
 });
 </script>
+
+
+
+
+
+
+<script>
+(function(){
+  const ENDPOINT_PROCESOS = "https://script.google.com/macros/s/AKfycbw4KLB3AiRM6N1sC39cn1-HANO6ccsBQs3AeL6S5y-bt1IEoV8eZOakwHU_OSbspJWG/exec";
+  const $ = (id) => document.getElementById(id);
+
+  async function loadProcesos(){
+    try{
+      const res = await fetch(ENDPOINT_PROCESOS, { method:'GET', cache:'no-store' });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      let data;
+      try { data = await res.json(); }
+      catch(_){ const txt = await res.text(); data = JSON.parse(txt); }
+
+      // Esperado: { procesos: [...] } o bien un array plano
+      const arr = Array.isArray(data?.procesos) ? data.procesos
+                : (Array.isArray(data) ? data : []);
+
+      // Acepta string o { proceso } o { Proceso }
+      const norm = arr.map(it => {
+                      if (typeof it === 'string') return it;
+                      if (it && typeof it === 'object') return it.proceso ?? it.Proceso ?? '';
+                      return '';
+                    })
+                    .filter(Boolean)
+                    .sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+
+      const sel = $('proceso');
+      if (!sel || sel.tagName !== 'SELECT') return;
+      sel.innerHTML = '<option value="" disabled selected>Seleccione…</option>';
+      for (const label of norm){
+        const o = document.createElement('option');
+        o.value = label;
+        o.textContent = label;
+        sel.appendChild(o);
+      }
+    }catch(err){
+      console.warn('Error cargando procesos:', err);
+      const sel = $('proceso');
+      if (sel) sel.innerHTML = '<option value="" disabled selected>No disponible</option>';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadProcesos);
+})();
+</script>
+
+
+
+
 
 </body>
 </html>
