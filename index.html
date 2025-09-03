@@ -31,7 +31,7 @@
     input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
     select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 20px) calc(1.1em),calc(100% - 15px) calc(1.1em);background-size:5px 5px,5px 5px;background-repeat:no-repeat}
     .actions{display:flex;gap:.75rem;flex-wrap:wrap}
-    .btn{cursor:pointer;border-radius:999px;padding:.9rem 1.25rem;border:1px solid #2d3b5a;font-weight:600;background:#0b1222}.picker-row .btn{font-size:.92rem;padding:.6rem 1rem}
+    .btn-sm{font-size:.92rem;padding:.6rem 1rem}.btn{cursor:pointer;border-radius:999px;padding:.9rem 1.25rem;border:1px solid #2d3b5a;font-weight:600;background:#0b1222}.btn.warn{border-color:#b45309;background:#1f1303}.picker-row .btn{font-size:.92rem;padding:.6rem 1rem}
     .btn.primary{background:#225ad6;color:#eaf0f8;border-color:#1c4bb3}
     .btn.ok{background:#0fa86b;border-color:#118a59}
     .btn.danger{background:#ff476a;border-color:#e33e5d}
@@ -167,7 +167,12 @@
             <label for="factura">Número de factura <span id="facturaStatus" class="factura-status" aria-live="polite"></span></label>
             <input id="factura" name="factura" required />
             <div class="error" id="err_factura"></div>
-          </div>
+          
+    <div id="dupReplaceBlock" class="inline-actions" style="display:none;margin-top:.25rem">
+      <button type="button" id="btnReemplazar" class="btn warn btn-sm">Reemplazar reporte existente</button>
+      <small id="replaceHelp" class="muted" style="margin-left:.5rem">Se actualizará el reporte con esta factura.</small>
+    </div>
+    </div>
           <div>
             <label for="nombre_comercio">Nombre del comercio</label>
             <input id="nombre_comercio" name="nombre_comercio" required />
@@ -651,7 +656,8 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
           JefeInmediato: data.JefeInmediato,
           pdf: b64,
           filename: filename,
-          dedupeKey: dedupeKey
+          dedupeKey: dedupeKey,
+          reemplazarPorFactura: !!window.__forceReplaceByFactura
         },
         0,
         __timeoutMs
@@ -661,7 +667,10 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
 
     function attachImageInputs(){ ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',function(){handleImageInput(id)},{passive:true}); }); }
 
-    document.addEventListener('DOMContentLoaded',function(){ attachImageInputs(); ['sector','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',schedulePreview); }); });
+    document.addEventListener('DOMContentLoaded',function(){ attachImageInputs();
+  var br = document.getElementById('btnReemplazar');
+  if(br){ br.addEventListener('click', function(){ __forceReplaceByFactura = true; setFacturaStatus('warn','Reemplazo activado'); if (typeof updateEnviarEnabled==='function') updateEnviarEnabled(); }, {passive:true}); }
+ ['sector','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',schedulePreview); }); });
     window.addEventListener('load', async function(){ try{ await waitForPdfMake(); await cargarCatalogos(); $('btnPreview').disabled=false; $('btnEnviar').disabled=false; $('btnPreview').addEventListener('click',schedulePreview); $('btnEnviar').addEventListener('click',enviarReporte); $('sector')&&$('sector').addEventListener('change', onSectorChange); }catch(e){} });
     window.addEventListener('beforeunload',function(){ if(window.lastBlobUrl) URL.revokeObjectURL(window.lastBlobUrl); });
 
@@ -791,7 +800,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var btn = document.getElementById('btnEnviar');
     if(!btn) return;
     var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
-    var dup = !!window.__facturaDuplicada;
+    var dup = !!window.__facturaDuplicada && !window.__forceReplaceByFactura;
     var complete = (isFacturaCompletaLocal() && (typeof isIdentidadCompletaLocal==='function' ? isIdentidadCompletaLocal() : true));
     btn.disabled = isSaving || dup || !complete;
   };
@@ -1005,16 +1014,24 @@ async function postJSONTolerant(url, payload, opts){
 var __facturaDuplicada = false;
 function setDuplicadaState(isDup){
   __facturaDuplicada = !!isDup;
-  // Deshabilita el botón de enviar si hay duplicado o si ya está guardando
+  // Mostrar/ocultar bloque de reemplazo
+  try{
+    var blk = document.getElementById('dupReplaceBlock');
+    if(blk) blk.style.display = __facturaDuplicada ? 'block' : 'none';
+    if(!__facturaDuplicada){ __forceReplaceByFactura = false; }
+  }catch(_){}
+
+  // Deshabilita el botón de enviar si hay duplicado y no hay reemplazo activo, o si ya está guardando
   try {
     var btn = document.getElementById('btnEnviar');
     if(btn){
       var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
-      btn.disabled = !!(__facturaDuplicada || isSaving);
+      btn.disabled = !!((__facturaDuplicada && !__forceReplaceByFactura) || isSaving);
     }
   } catch(_){}
 }
 
+var __forceReplaceByFactura = false;
 var __facturaAbort = null;
 async function validarFacturaSoloNumero(){
   // Solo validar con 16 dígitos exactos
@@ -1209,7 +1226,7 @@ async function validarFacturaSoloNumero(){
     var prev = window.updateEnviarEnabled;
     window.updateEnviarEnabled = function(){
       var btn = document.getElementById('btnEnviar') || document.querySelector('[type="submit"]');
-      var dup = !!window.__facturaDuplicada;
+      var dup = !!window.__facturaDuplicada && !window.__forceReplaceByFactura;
       var complete = (typeof isFacturaCompletaLocal==='function' ? isFacturaCompletaLocal() : true)
                   && (typeof isIdentidadCompletaLocal==='function' ? isIdentidadCompletaLocal() : true);
       var overMax = !!window.__overMaxTotal || !!window.__overMaxLitros;
