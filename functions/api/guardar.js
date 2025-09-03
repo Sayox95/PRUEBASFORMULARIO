@@ -15,46 +15,53 @@ export async function onRequestOptions({ request }) {
 
 export async function onRequestPost({ request, env }) {
   const origin = request.headers.get('Origin') || '*';
-  const bodyText = await request.text(); // el body incluye dedupeKey, pdf base64, etc.
+  const bodyText = await request.text(); // payload original (incluye base64 del PDF)
 
-  // URL del Apps Script (usa variable de entorno si existe)
   const upstream =
     env?.APPS_SCRIPT_POST_URL ||
     'https://script.google.com/macros/s/AKfycbywgBig3b3ct8v679-SSKmnhz8M1l2Go5U5N-a5B5rbe2YwH4d5GXLY4KkdL8DLkTRTBQ/exec';
 
   let resp;
   try {
+    // Timeout (ajústalo o quítalo si prefieres el default de CF ~50s)
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 25000); // timeout 25s
+    const timeoutMs = 45000;
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+
     resp = await fetch(upstream, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: bodyText,
       signal: controller.signal
     });
+
     clearTimeout(id);
   } catch (e) {
-    return new Response(JSON.stringify({
-      status: 'ERROR',
-      message: 'No se pudo conectar con Apps Script'
-    }), {
-      status: 502,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Content-Type': 'application/json',
-        'Vary': 'Origin'
+    return new Response(
+      JSON.stringify({ status: 'ERROR', message: 'No se pudo conectar con Apps Script' }),
+      {
+        status: 502,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'Vary': 'Origin'
+        }
       }
-    });
+    );
   }
 
-  const text = await resp.text();
+  const text = await resp.text(); // lee SOLO una vez
 
-  // Reenvía tal cual la respuesta del Apps Script (debe ser JSON)
+  // Content-Type del upstream, con fallback a JSON
+  const upstreamCT = resp.headers.get('content-type') || 'application/json';
+
   return new Response(text, {
     status: resp.status,
     headers: {
       'Access-Control-Allow-Origin': origin,
-      'Content-Type': 'application/json',
+      'Content-Type': upstreamCT,
+      'Cache-Control': 'no-store',
       'Vary': 'Origin'
     }
   });
