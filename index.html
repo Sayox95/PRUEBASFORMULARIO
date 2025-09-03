@@ -263,7 +263,6 @@
     const ImageState = {};
     let isSaving = false;
     const urlGuardarReporte = '/api/guardar';
-    const urlValidarFactura = '/api/validar';
     const Catalogos = { sectores: [], placasPorSector: {}, jefePorSector: {} };
     const urlCatalogos = 'https://script.google.com/macros/s/AKfycbxp2yVp4hF-t9f2LdU9NhZxVt6RwXyL3uKrKzXk4a_l4na2Rkd1LZMB02pEJeRQ_eCF/exec';
 
@@ -984,11 +983,8 @@ document.addEventListener('DOMContentLoaded', function(){
 <script>
 // ===== Validación en vivo de Número de factura (solo por número). Bloquea "Enviar" si es duplicada. =====
 function getValidacionEndpoint(){
-  try {
-    return (typeof urlValidarFactura !== 'undefined' && urlValidarFactura) ? urlValidarFactura : '/api/validar';
-  } catch(_){
-    return '/api/validar';
-  }
+  try { return (typeof urlGuardarReporte !== 'undefined' && urlGuardarReporte) ? urlGuardarReporte : '/api/guardar'; }
+  catch(e){ return '/api/guardar'; }
 }
 function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 function setFacturaStatus(kind, text){
@@ -1010,7 +1006,7 @@ async function postJSONTolerant(url, payload, opts){
     }
     var txt = ''; try{ txt = await res.text(); }catch(_){}
     try { return txt ? JSON.parse(txt) : { status:'OK' }; }
-    catch(_){ return { status:'OK', raw: txt }; }
+    catch { return { status:'OK', raw: txt }; }
   }catch(e){ clearTimeout(timer); throw e; }
 }
 
