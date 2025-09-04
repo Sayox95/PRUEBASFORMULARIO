@@ -1054,7 +1054,19 @@ function setDuplicadaState(isDup){
   try{
     var blk = document.getElementById('dupReplaceBlock');
     if(blk) blk.style.display = __facturaDuplicada ? 'block' : 'none';
-    if(!__facturaDuplicada){ __forceReplaceByFactura = false; }
+    if(!__facturaDuplicada){ __forceReplaceByFactura = false; 
+  try{
+    var btn = document.getElementById('btnReemplazar');
+    if (btn){
+      // Re-aparecer el botón si hay duplicado y NO hay reemplazo activado
+      if (__facturaDuplicada && !window.__forceReplaceByFactura){
+        btn.style.display = '';
+      } else {
+        btn.style.display = 'none';
+      }
+    }
+  }catch(_){}
+}
   }catch(_){}
 
   // Deshabilita el botón de enviar si hay duplicado y no hay reemplazo activo, o si ya está guardando
