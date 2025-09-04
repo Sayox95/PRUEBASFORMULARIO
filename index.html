@@ -111,8 +111,8 @@
           </div>
           <div>
             <label for="proceso">Proceso</label>
-<select id="proceso" name="proceso" required>
-  <option value="" selected disabled>Cargando procesos…</option>
+<select id="proceso" name="proceso" required disabled>
+  <option value="" selected disabled>Cargando…</option>
 </select>
 
             <div class="error" id="err_proceso"></div>
@@ -802,7 +802,7 @@ document.addEventListener('DOMContentLoaded', function(){
             var url  = base + (base.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
             location.replace(url);
           } catch(_) {}
-        }, 2600);
+        }, 3000);
       });
     }
   });
@@ -1312,7 +1312,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const sel = $('proceso');
       if (!sel || sel.tagName !== 'SELECT') return;
       sel.innerHTML = '<option value="" disabled selected>Seleccione…</option>';
-      for (const label of norm){
+      sel.disabled = (norm.length === 0);
+if (norm.length > 0) sel.removeAttribute('disabled');
+for (const label of norm){
         const o = document.createElement('option');
         o.value = label;
         o.textContent = label;
