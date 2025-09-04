@@ -1050,31 +1050,31 @@ async function postJSONTolerant(url, payload, opts){
 var __facturaDuplicada = false;
 function setDuplicadaState(isDup){
   __facturaDuplicada = !!isDup;
-  // Mostrar/ocultar bloque de reemplazo
-  try{
+  // Mostrar/ocultar bloque de reemplazo (botón + texto) según duplicado
+  try {
     var blk = document.getElementById('dupReplaceBlock');
-    if(blk) blk.style.display = __facturaDuplicada ? 'block' : 'none';
-    if(!__facturaDuplicada){ __forceReplaceByFactura = false; 
-  try{
+    if (blk) blk.style.display = __facturaDuplicada ? 'block' : 'none';
+    if (!__facturaDuplicada) { __forceReplaceByFactura = false; }
+  } catch(_){}
+
+  // Visibilidad del botón (se puede volver a mostrar si aparece otro duplicado)
+  try {
     var btn = document.getElementById('btnReemplazar');
     if (btn){
-      // Re-aparecer el botón si hay duplicado y NO hay reemplazo activado
       if (__facturaDuplicada && !window.__forceReplaceByFactura){
         btn.style.display = '';
       } else {
         btn.style.display = 'none';
       }
     }
-  }catch(_){}
-}
-  }catch(_){}
+  } catch(_){}
 
-  // Deshabilita el botón de enviar si hay duplicado y no hay reemplazo activo, o si ya está guardando
+  // Estado del botón Enviar
   try {
-    var btn = document.getElementById('btnEnviar');
-    if(btn){
+    var btnEnviar = document.getElementById('btnEnviar');
+    if (btnEnviar){
       var isSaving = (typeof window.isSaving !== 'undefined') ? !!window.isSaving : false;
-      btn.disabled = !!((__facturaDuplicada && !__forceReplaceByFactura) || isSaving);
+      btnEnviar.disabled = !!((__facturaDuplicada && !window.__forceReplaceByFactura) || isSaving);
     }
   } catch(_){}
 }
