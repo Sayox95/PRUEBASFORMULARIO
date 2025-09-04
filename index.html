@@ -76,6 +76,18 @@
 
 
 .form-grid textarea{width:100%; min-height:3.25rem; padding:0.5rem; border:1px solid #cbd5e1; border-radius:0.5rem;}
+
+/* === Cards para campos de foto === */
+.upload-card{
+  border:1px dashed #3b82f6; border-radius:12px; padding:12px; 
+  background: rgba(59,130,246,.06);
+}
+.upload-card .picker-row{ margin-top:6px; }
+.upload-card .thumb{ margin-top:10px; }
+@media (min-width:640px){
+  .upload-card .picker-row{ display:flex; gap:8px; }
+}
+
 </style>
 
 <style>
@@ -1452,5 +1464,25 @@ document.addEventListener('DOMContentLoaded', function(){
   };
 })();
 </script>
+
+<script>
+// Marcar grupos de fotografía como "card" para mejor visibilidad en móvil
+document.addEventListener('DOMContentLoaded', function(){
+  var ids = [
+    'foto_tablero_antes','foto_bomba','foto_despues',
+    'foto_bomba_llenado','foto_frontal','foto_factura'
+  ];
+  ids.forEach(function(inputId){
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    // El contenedor directo de cada grupo es el DIV de la columna
+    var colDiv = input.closest('div');
+    if (colDiv && !colDiv.classList.contains('upload-card')){
+      colDiv.classList.add('upload-card');
+    }
+  });
+});
+</script>
+
 </body>
 </html>
