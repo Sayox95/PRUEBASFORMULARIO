@@ -162,7 +162,7 @@
           </div>
           <div>
             <label for="horas">Horas del viaje</label>
-            <input id="horas" name="horas" type="number" min="0" step="0.1" required />
+            <input id="horas" name="horas" type="number" min="0" step="0.1" />
             <div class="error" id="err_horas"></div>
           </div>
           <div>
@@ -196,8 +196,8 @@
           
     <div id="dupReplaceBlock" class="inline-actions" style="display:none;margin-top:.25rem">
       <button type="button" id="btnReemplazar" class="btn warn btn-sm">Reemplazar reporte existente</button>
-      <small id="replaceHelp" class="muted" style="margin-left:.5rem">Se actualizará el reporte con esta factura.</small>
-    </div>
+      <small id="replaceHelp" class="muted" style="margin-left:.5rem;font-size:.9em;color:#9ca3af">Se actualizará el reporte con esta factura.</small>
+</div>
     </div>
           <div>
             <label for="nombre_comercio">Nombre del comercio</label>
@@ -702,7 +702,7 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
 
     document.addEventListener('DOMContentLoaded',function(){ attachImageInputs();
   var br = document.getElementById('btnReemplazar');
-  if(br){ br.addEventListener('click', function(){ __forceReplaceByFactura = true; setFacturaStatus('warn','Reemplazo activado'); if (typeof updateEnviarEnabled==='function') updateEnviarEnabled(); }, {passive:true}); }
+  if(br){ br.addEventListener('click', function(){ __forceReplaceByFactura = true; setFacturaStatus('warn','Reemplazo activado'); if (typeof updateEnviarEnabled==='function') updateEnviarEnabled();  br.style.display='none'; }, {passive:true}); }
  ['sector','proceso','placa','nombre','identidad','fecha','horas','km','total','litros','motivo','factura','nombre_comercio','jefe'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',schedulePreview); }); });
     window.addEventListener('load', async function(){ try{ await waitForPdfMake(); await cargarCatalogos(); $('btnPreview').disabled=false; $('btnEnviar').disabled=false; $('btnPreview').addEventListener('click',schedulePreview); $('btnEnviar').addEventListener('click',enviarReporte); $('sector')&&$('sector').addEventListener('change', onSectorChange); }catch(e){} });
     window.addEventListener('beforeunload',function(){ if(window.lastBlobUrl) URL.revokeObjectURL(window.lastBlobUrl); });
