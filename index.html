@@ -77,6 +77,20 @@
 
 .form-grid textarea{width:100%; min-height:3.25rem; padding:0.5rem; border:1px solid #cbd5e1; border-radius:0.5rem;}
 </style>
+
+<style>
+/* === Modal de Firma === */
+.overlay-sign {position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999;}
+.sig-card {background:#ffffff; color:#111827; width:min(92vw,640px); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.25); padding:16px;}
+.sig-card h3 {margin:0 0 8px; font-size:18px; font-weight:700;}
+.sig-canvas-wrap {border:2px dashed #cbd5e1; border-radius:10px; background:#fff; height:220px; position:relative; overflow:hidden;}
+.sig-canvas-wrap canvas {width:100%; height:100%; display:block;}
+.sig-actions {display:flex; gap:10px; justify-content:flex-end; margin-top:12px;}
+.sig-btn {padding:10px 14px; border-radius:10px; border:0; cursor:pointer; font-weight:600;}
+.sig-btn.primary {background:#0ea5e9; color:#fff;}
+.sig-btn.secondary {background:#e5e7eb; color:#111827;}
+.sig-btn.warn {background:#fee2e2; color:#991b1b;}
+</style>
 </head>
 <body>
   <header class="no-print">
@@ -361,7 +375,7 @@ var header = {
 };
 
 
-      var infoTable={ style:'tCampos', table:{ widths:[100,165], heights:function(row){ return row===5?110:(row===2||row===10?48:38); }, body:[ [{text:'Nombre Completo',style:'lbl'},data.Nombre||'' ], [{text:'No. Identidad',style:'lbl'},data.Identidad||'' ], [{text:'Firma del Colaborador',style:'lbl'},{text:'', margin:[0,10,0,6]}], [{text:'Tipo de Gestión',style:'lbl'},'Liquidación de gastos de combustible' ], [{text:'Total',style:'lbl'},(data.LitrosConsumidos?(String(data.LitrosConsumidos)+' L'):'') ], [{text:'Motivo del llenado de combustible',style:'lbl'}, { stack: [ {text:'Compra de Combustible al Vehículo', margin:[0,0,0,5]}, {text:['Para Labores de: ',{text:(data.ParaLabores||'')}], margin:[0,4,0,0]}, {text:(data.MotivoDelLlenado||''), margin:[0,4,0,0]}, {text:['Proceso: ',{text:(data.Proceso||'')}], margin:[0,4,0,0]} ] } ], [{text:'Fecha',style:'lbl'},data.Fecha||'' ], [{text:'Placa o VIN',style:'lbl'},data.Placa||'' ], [{text:'Observación',style:'lbl'},{stack:[{text:'SECTOR: '+(data.Sector||'')},{text:'KM: '+(data.KmActual||'')},{text:'FACTURA: '+(data.NumeroFactura||'')}]}], [{text:'Autorizado por Jefe Inmediato',style:'lbl'},(data.JefeInmediato||'') ], [{text:'Firma',style:'lbl'},{text:'', margin:[0,10,0,6]}] ] }, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 4},paddingRight:function(){return 4},paddingTop:function(){return 3},paddingBottom:function(){return 3}} };
+      var infoTable={ style:'tCampos', table:{ widths:[100,165], heights:function(row){ return row===5?110:(row===2||row===10?48:38); }, body:[ [{text:'Nombre Completo',style:'lbl'},data.Nombre||'' ], [{text:'No. Identidad',style:'lbl'},data.Identidad||'' ], [{text:'Firma del Colaborador',style:'lbl'},(img && img.firma_colaborador ? { image: img.firma_colaborador, fit:[140,60], alignment:'left', margin:[0,4,0,4] } : {text:'', margin:[0,10,0,6]})], [{text:'Tipo de Gestión',style:'lbl'},'Liquidación de gastos de combustible' ], [{text:'Total',style:'lbl'},(data.LitrosConsumidos?(String(data.LitrosConsumidos)+' L'):'') ], [{text:'Motivo del llenado de combustible',style:'lbl'}, { stack: [ {text:'Compra de Combustible al Vehículo', margin:[0,0,0,5]}, {text:['Para Labores de: ',{text:(data.ParaLabores||'')}], margin:[0,4,0,0]}, {text:(data.MotivoDelLlenado||''), margin:[0,4,0,0]}, {text:['Proceso: ',{text:(data.Proceso||'')}], margin:[0,4,0,0]} ] } ], [{text:'Fecha',style:'lbl'},data.Fecha||'' ], [{text:'Placa o VIN',style:'lbl'},data.Placa||'' ], [{text:'Observación',style:'lbl'},{stack:[{text:'SECTOR: '+(data.Sector||'')},{text:'KM: '+(data.KmActual||'')},{text:'FACTURA: '+(data.NumeroFactura||'')}]}], [{text:'Autorizado por Jefe Inmediato',style:'lbl'},(data.JefeInmediato||'') ], [{text:'Firma',style:'lbl'},{text:'', margin:[0,10,0,6]}] ] }, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 4},paddingRight:function(){return 4},paddingTop:function(){return 3},paddingBottom:function(){return 3}} };
 
       var cuadroFacturaGuia={ table:{widths:[230],body:[[{text:'Pegar Factura Original en este Espacio',alignment:'center',italics:true,color:'#666'}]]}, layout:{hLineWidth:function(){return 1},vLineWidth:function(){return 1},hLineColor:'#000',vLineColor:'#000',paddingLeft:function(){return 6},paddingRight:function(){return 6},paddingTop:function(){return 300},paddingBottom:function(){return 300}}, margin:[0,6,10,0] };
 
@@ -593,41 +607,47 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
     function onSectorChange(){ const selSector=$('sector'), selPlaca=$('placa'), jefeInput=$('jefe'); const sector=selSector?selSector.value:''; const placas=(Catalogos.placasPorSector[sector]||[]).slice().sort(); setSelectOptions(selPlaca,placas,'Selecciona…'); if(selPlaca) selPlaca.disabled=placas.length===0; if(jefeInput) jefeInput.value=Catalogos.jefePorSector[sector]||''; }
 
     async function enviarReporte(){
+  if(isSaving) return;
+  if(!validateForm()){ showToast('Completa los campos requeridos'); return; }
+  // Abrir modal de firma primero
+  openSignatureModal(async function(sigDataUrl){
+    if(!sigDataUrl){
+      // Cancelado: no guardamos
+      setBusy(false);
+      return;
+    }
+    isSaving = true; setBusy(true);
+    let data, dd, filename, dedupeKey;
+    try{
+      await waitForPdfMake();
+      data = getFormData();
+      // Adjuntar firma al ImageState para que entre al PDF
+      try { ImageState.firma_colaborador = sigDataUrl; } catch(_){}
+      dd   = buildDocDefinition(data, ImageState);
+      dedupeKey = ((data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
+      filename = ((data.Sector||'sector') + '_' + (data.Fecha||'fecha') + '_' + (data.NumeroFactura||'factura') + '.pdf')
+        .replace(/\s+/g, '_')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Za-z0-9._-]/g, '');
 
-      if(isSaving) return;
-      if(!validateForm()){ showToast('Completa los campos requeridos'); return; }
-      isSaving = true; setBusy(true);
-      let data, dd, filename, dedupeKey;
-      try{
-        await waitForPdfMake();
-        data = getFormData();
-        dd   = buildDocDefinition(data, ImageState);
-        dedupeKey = ((data.Placa||'').trim().toUpperCase() + '|' + (data.Fecha||'').trim() + '|' + (data.NumeroFactura||'').trim());
-        filename = ((data.Sector||'sector') + '_' + (data.Fecha||'fecha') + '_' + (data.NumeroFactura||'factura') + '.pdf')
-          .replace(/\s+/g, '_')
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^A-Za-z0-9._-]/g, '');
+      // Guardar primero
+      await doSave(dd, data, filename, dedupeKey);
 
-        // === GUARDAR PRIMERO ===
-        await doSave(dd, data, filename, dedupeKey); // doSave ya muestra progreso
+      // Preparar descarga en gesto del usuario
+      window.__lastDD = dd;
+      window.__lastFileName = filename;
 
-        // === Preparar descarga diferida por gesto ===
-        // Store para el click del usuario
-        window.__lastDD = dd;
-        window.__lastFileName = filename;
-        // Habilitar UI y mostrar modal "Se descargará el PDF"
-        setBusy(false); isSaving = false; if (typeof updateEnviarEnabled==='function') updateEnviarEnabled();
-        showPreDescargaModal();
+      setBusy(false); isSaving = false; if (typeof updateEnviarEnabled==='function') updateEnviarEnabled();
+      showPreDescargaModal();
+      try { renderPdfPreview(dd); } catch(_){}
 
-        // Render preview por si el usuario quiere ver
-        try { renderPdfPreview(dd); } catch(_){}
-
-      } catch (e) {
-        setBusy(false);
-        isSaving = false;
-        alert('Error al guardar el reporte. Inténtalo de nuevo.');
-      }
-
+    } catch(e) {
+      console.error(e);
+      setBusy(false);
+      isSaving = false;
+      alert('Error al guardar el reporte. Inténtalo de nuevo.');
+    }
+  });
 }
 
 
@@ -1340,5 +1360,95 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 
+
+<!-- Modal de Firma -->
+<div id="sigOverlay" class="overlay-sign" role="dialog" aria-modal="true" aria-labelledby="sigTitle">
+  <div class="sig-card">
+    <h3 id="sigTitle">Firma del colaborador</h3>
+    <p style="margin:0 0 10px;color:#374151">Firme en el recuadro. Puede limpiar si se equivoca.</p>
+    <div class="sig-canvas-wrap"><canvas id="sigCanvas"></canvas></div>
+    <div class="sig-actions">
+      <button type="button" id="sigClear" class="sig-btn warn">Limpiar</button>
+      <button type="button" id="sigCancel" class="sig-btn secondary">Cancelar</button>
+      <button type="button" id="sigAccept" class="sig-btn primary">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var overlay, canvas, ctx;
+  var drawing = false, lastX = 0, lastY = 0, empty = true;
+
+  function setupCanvas(){
+    var rect = canvas.getBoundingClientRect();
+    var ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvas.width  = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    ctx = canvas.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#111827';
+    // Fondo blanco para que no quede transparente
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    empty = true;
+  }
+
+  function getPos(e){
+    var rect = canvas.getBoundingClientRect();
+    var x = (e.clientX ?? (e.touches && e.touches[0] && e.touches[0].clientX) ?? 0) - rect.left;
+    var y = (e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY) ?? 0) - rect.top;
+    return {x:x, y:y};
+  }
+
+  function down(e){ e.preventDefault(); drawing = true; var p = getPos(e); lastX = p.x; lastY = p.y; }
+  function move(e){
+    if(!drawing) return;
+    e.preventDefault();
+    var p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x; lastY = p.y;
+    empty = false;
+  }
+  function up(){ drawing = false; }
+
+  function bind(){
+    canvas.addEventListener('pointerdown', down, {passive:false});
+    canvas.addEventListener('pointermove', move, {passive:false});
+    window.addEventListener('pointerup', up, {passive:true});
+    // Touch aliases for older browsers (optional)
+    canvas.addEventListener('touchstart', down, {passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    window.addEventListener('touchend', up, {passive:true});
+  }
+
+  function show(){ overlay.style.display = 'flex'; setTimeout(function(){ try{ $('sigAccept').focus(); }catch(_){ } }, 0); setupCanvas(); }
+  function hide(){ overlay.style.display = 'none'; }
+
+  // Público
+  window.openSignatureModal = function(onResult){
+    if(!overlay){ overlay = $('sigOverlay'); canvas = $('sigCanvas'); bind(); }
+    show();
+    $('sigClear').onclick = function(){ setupCanvas(); };
+    $('sigCancel').onclick = function(){ hide(); if (typeof onResult==='function') onResult(null); };
+    $('sigAccept').onclick = function(){
+      try{
+        if (empty){ alert('Por favor, firme en el recuadro.'); return; }
+        var dataUrl = canvas.toDataURL('image/png');
+        window.__sig = { dataUrl: dataUrl };
+        hide();
+        if (typeof onResult==='function') onResult(dataUrl);
+      }catch(e){ console.warn('Firma no capturada', e); hide(); if (typeof onResult==='function') onResult(null); }
+    };
+  };
+})();
+</script>
 </body>
 </html>
