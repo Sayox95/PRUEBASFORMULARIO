@@ -1498,3 +1498,74 @@ document.addEventListener('DOMContentLoaded', function(){
 
 </body>
 </html>
+\n
+<!-- HEIC/HEIF compatibility: converts .heic/.heif to JPEG client-side using heic2any -->
+<script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
+<script>
+(function(){
+  // Extend accept attributes to include HEIC/HEIF
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('input[type="file"]').forEach(function(inp){
+      var accept = (inp.getAttribute('accept') || '').toLowerCase();
+      // Only extend if it's an image input (or empty accept)
+      if (!accept || accept.includes('image')) {
+        var extra = ',.heic,.heif,image/heic,image/heif';
+        if (!accept.includes('.heic') && !accept.includes('image/heic')) {
+          inp.setAttribute('accept', (accept ? accept + extra : 'image/*' + extra));
+        }
+      }
+    });
+  });
+
+  function isHeic(file){
+    var type = (file && file.type || '').toLowerCase();
+    var name = (file && file.name || '').toLowerCase();
+    return /heic|heif/.test(type) || /\.(heic|heif)$/.test(name);
+  }
+
+  async function heicToJpegBlob(file){
+    // heic2any returns a Blob or an array of Blobs
+    var res = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+    return (res instanceof Blob) ? res : res[0];
+  }
+
+  let reenterGuard = new WeakMap();
+  document.addEventListener('change', async function(ev){
+    var input = ev.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    if (input.type !== 'file') return;
+    if (!input.files || input.files.length === 0) return;
+
+    // Only process the first file (the form appears to use single-file inputs)
+    var file = input.files[0];
+    if (!isHeic(file)) return;
+
+    // Prevent infinite loop if we programmatically re-dispatch 'change'
+    if (reenterGuard.get(input)) return;
+    reenterGuard.set(input, true);
+
+    try {
+      // Convert HEIC/HEIF to JPEG
+      const jpegBlob = await heicToJpegBlob(file);
+      const jpegName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+      const jpegFile = new File([jpegBlob], jpegName, { type: 'image/jpeg', lastModified: Date.now() });
+
+      // Replace the FileList with the new JPEG file
+      const dt = new DataTransfer();
+      dt.items.add(jpegFile);
+      input.files = dt.files;
+
+      // Optionally, reflect name on any filename previews if present
+      // Re-dispatch change so existing handlers (resize/compress/preview) run normally
+      setTimeout(function(){
+        reenterGuard.set(input, false);
+        input.dispatchEvent(new Event('change'));
+      }, 0);
+    } catch (e) {
+      reenterGuard.set(input, false);
+      console.error('HEIC conversion failed:', e);
+      alert('No se pudo convertir la foto HEIC/HEIF. Por favor intenta nuevamente o sube la imagen como JPEG/PNG.\n' + (e && e.message ? e.message : ''));
+    }
+  }, true);
+})();
+</script>
