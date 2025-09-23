@@ -19,7 +19,7 @@ export async function onRequestPost({ request, env }) {
 
   const upstream =
     env?.APPS_SCRIPT_POST_URL ||
-    'https://script.google.com/macros/s/AKfycby7aX6m6NaFsY2NB9Z2em-ydJI_eQrsIVIoCwFceiW_HfYbnCDYgfbWxSMDhRyMzkrjWw/exec';
+    'https://script.google.com/macros/s/AKfycbx8-g8jiGA_psOLyoVD-bWrfVP7IcRv9r8iXDOZIjVXhiUtSvwF6Ovm5RQQE_X1RM0hog/exec';
 
   let resp;
   try {
