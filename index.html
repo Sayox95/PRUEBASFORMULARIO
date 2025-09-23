@@ -57,8 +57,6 @@
 .factura-status.warn{color:#b26a00}
 .factura-status.mute{color:#6b7280}
 
-}
-
 
 /* Spinner con pseudo-elemento (robusto) */
 .factura-status{font-size:.9rem;font-weight:600;margin-left:.5rem;vertical-align:middle}
@@ -103,6 +101,8 @@
 .sig-btn.secondary {background:#e5e7eb; color:#111827;}
 .sig-btn.warn {background:#fee2e2; color:#991b1b;}
 </style>
+
+  <script>window.__forceReplaceByFactura = window.__forceReplaceByFactura || false;</script>
 </head>
 <body>
   <header class="no-print">
@@ -174,17 +174,17 @@
         <div class="grid cols-3">
           <div>
             <label for="total">Total gastado (moneda)</label> <span id="err_total_lbl" class="hint" style="margin-left:.5rem;font-size:.9em;color:#b45309"></span>
-            <input id="total" name="total" type="text" min="0" step="0.01" required / inputmode="decimal">
+            <input id="total" name="total" type="text" min="0" step="0.01" required inputmode="decimal">
             <div class="error" id="err_total"></div>
           </div>
           <div>
             <label for="litros">Litros consumidos</label> <span id="err_litros_lbl" class="hint" style="margin-left:.5rem;font-size:.9em;color:#b45309"></span>
-            <input id="litros" name="litros" type="text" min="0" step="0.01" required / inputmode="decimal">
+            <input id="litros" name="litros" type="text" min="0" step="0.01" required inputmode="decimal">
             <div class="error" id="err_litros"></div>
           </div>
           <div class="span-2">
             <label for="motivo">Motivo del llenado</label>
-            <textarea  id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required / rows="4" placeholder="Explique brevemente..." style="resize:vertical"></textarea>
+            <textarea  id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required rows="4" placeholder="Explique brevemente..." style="resize:vertical"></textarea>
             <div class="error" id="err_motivo"></div>
           </div>
         </div>
