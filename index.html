@@ -57,6 +57,8 @@
 .factura-status.warn{color:#b26a00}
 .factura-status.mute{color:#6b7280}
 
+}
+
 
 /* Spinner con pseudo-elemento (robusto) */
 .factura-status{font-size:.9rem;font-weight:600;margin-left:.5rem;vertical-align:middle}
@@ -101,8 +103,6 @@
 .sig-btn.secondary {background:#e5e7eb; color:#111827;}
 .sig-btn.warn {background:#fee2e2; color:#991b1b;}
 </style>
-
-  <script>window.__forceReplaceByFactura = window.__forceReplaceByFactura || false;</script>
 </head>
 <body>
   <header class="no-print">
@@ -174,17 +174,17 @@
         <div class="grid cols-3">
           <div>
             <label for="total">Total gastado (moneda)</label> <span id="err_total_lbl" class="hint" style="margin-left:.5rem;font-size:.9em;color:#b45309"></span>
-            <input id="total" name="total" type="text" min="0" step="0.01" required inputmode="decimal">
+            <input id="total" name="total" type="text" min="0" step="0.01" required / inputmode="decimal">
             <div class="error" id="err_total"></div>
           </div>
           <div>
             <label for="litros">Litros consumidos</label> <span id="err_litros_lbl" class="hint" style="margin-left:.5rem;font-size:.9em;color:#b45309"></span>
-            <input id="litros" name="litros" type="text" min="0" step="0.01" required inputmode="decimal">
+            <input id="litros" name="litros" type="text" min="0" step="0.01" required / inputmode="decimal">
             <div class="error" id="err_litros"></div>
           </div>
           <div class="span-2">
             <label for="motivo">Motivo del llenado</label>
-            <textarea  id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required rows="4" placeholder="Explique brevemente..." style="resize:vertical"></textarea>
+            <textarea  id="motivo" name="motivo" placeholder="Ej. Ruta diaria" required / rows="4" placeholder="Explique brevemente..." style="resize:vertical"></textarea>
             <div class="error" id="err_motivo"></div>
           </div>
         </div>
@@ -290,6 +290,26 @@
     let isSaving = false;
     const urlGuardarReporte = '/api/guardar';
     const urlValidarFactura = '/api/validar';
+    // Idempotencia: submissionId por envío
+    (function(){
+      let __submissionId = null;
+      function generateSubmissionId(){
+        try {
+          if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+          }
+        } catch(_) {}
+        // Fallback: timestamp + random + entropy de campos (si existen)
+        const rnd = Math.random().toString(36).slice(2);
+        return 'subm_' + Date.now().toString(36) + '_' + rnd;
+      }
+      window.getSubmissionId = function(){
+        if (!__submissionId) __submissionId = generateSubmissionId();
+        return __submissionId;
+      };
+      window.resetSubmissionId = function(){ __submissionId = null; };
+    })();
+
     const Catalogos = { sectores: [], placasPorSector: {}, jefePorSector: {} };
     const urlCatalogos = 'https://script.google.com/macros/s/AKfycbxp2yVp4hF-t9f2LdU9NhZxVt6RwXyL3uKrKzXk4a_l4na2Rkd1LZMB02pEJeRQ_eCF/exec';
 
@@ -589,7 +609,9 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
     var _previewTimer; function schedulePreview(){ clearTimeout(_previewTimer); _previewTimer=setTimeout(function(){ try{ var data=getFormData(); var dd=buildDocDefinition(data,ImageState); renderPdfPreview(dd); }catch(e){} },250); }
 
     async function postJSONWithRetry(url,payload,retries,timeoutMs){
-      retries = retries || 0; timeoutMs = timeoutMs || 15000;
+      retries = Number(retries||0);
+      timeoutMs = timeoutMs || 15000;
+      async function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
       var controller = new AbortController();
       var t = setTimeout(function(){ controller.abort(); }, timeoutMs);
       try{
@@ -602,13 +624,20 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
         var txt = await res.text();
         var json = null;
         try { json = JSON.parse(txt); } catch(_){ json = null; }
+        // Si se trata de la validación de duplicado, requiere JSON
         if (payload && payload.validarDuplicado === true && !json) { throw new Error('Respuesta no JSON'); }
+        // Algunos endpoints devuelven {status:'OK'}
         if (json && json.status && json.status !== 'OK') { throw new Error(json.message || 'Respuesta lógica inválida'); }
         return json || { status:'OK', raw: txt };
       }catch(e){
         clearTimeout(t);
         var transient = (e.name==='AbortError') || (e instanceof TypeError);
-        if(transient && retries>0) return postJSONWithRetry(url,payload,retries-1,timeoutMs);
+        if(transient && retries>0){
+          // Backoff exponencial suave: 1s, 3s, 5s...
+          var wait = retries===3 ? 1000 : (retries===2 ? 3000 : 5000);
+          await sleep(wait);
+          return postJSONWithRetry(url,payload,retries-1,timeoutMs);
+        }
         throw e;
       }
     }
@@ -643,6 +672,7 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
         .replace(/[^A-Za-z0-9._-]/g, '');
 
       // Guardar primero
+      if (typeof setProgress === "function") setProgress(40);
       await doSave(dd, data, filename, dedupeKey);
 
       // Preparar descarga en gesto del usuario
@@ -665,37 +695,56 @@ var page3={ stack:[ {text:'FACTURA ORIGINAL',style:'tSub',margin:[0,0,0,8],align
 
     async function doSave(dd, data, filename, dedupeKey){
       showProgress('Guardando información...');
-      const b64 = await new Promise(function(resolve, reject){
-        try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
-        catch(err){ reject(err); }
-      });
-      var __timeoutMs = 30000;
-      await postJSONWithRetry(
-        urlGuardarReporte,
-        {
-          Sector: data.Sector,
-          Placa: data.Placa,
-          Proceso: data.Proceso,
-          Nombre: data.Nombre,
-          Identidad: data.Identidad,
-          TotalGastado: data.TotalGastado,
-          LitrosConsumidos: data.LitrosConsumidos,
-          MotivoDelLlenado: data.MotivoDelLlenado,
-          Fecha: data.Fecha,
-          HorasDelViaje: data.HorasDelViaje,
-          KmActual: data.KmActual,
-          NombreComercio: data.NombreComercio,
-          NumeroFactura: data.NumeroFactura,
-          JefeInmediato: data.JefeInmediato,
-          pdf: b64,
-          filename: filename,
-          dedupeKey: dedupeKey,
-          reemplazarPorFactura: !!window.__forceReplaceByFactura
-        },
-        0,
-        __timeoutMs
-      );
-      hideProgress('Información enviada correctamente');
+      try {
+        // 10%: empaquetando PDF
+        if (typeof setProgress === 'function') setProgress(10);
+        const b64 = await new Promise(function(resolve, reject){
+          try { pdfMake.createPdf(dd).getBase64(function(val){ resolve(val); }); }
+          catch(err){ reject(err); }
+        });
+        // 70%: enviando a servidor
+        if (typeof setProgress === 'function') setProgress(70);
+        var __timeoutMs = 30000;
+        var __submissionId = (typeof getSubmissionId==='function' ? getSubmissionId() : String(Date.now()));
+        var resp = await postJSONWithRetry(
+          urlGuardarReporte,
+          {
+            Sector: data.Sector,
+            Placa: data.Placa,
+            Proceso: data.Proceso,
+            Nombre: data.Nombre,
+            Identidad: data.Identidad,
+            TotalGastado: data.TotalGastado,
+            LitrosConsumidos: data.LitrosConsumidos,
+            MotivoDelLlenado: data.MotivoDelLlenado,
+            Fecha: data.Fecha,
+            HorasDelViaje: data.HorasDelViaje,
+            KmActual: data.KmActual,
+            NombreComercio: data.NombreComercio,
+            NumeroFactura: data.NumeroFactura,
+            JefeInmediato: data.JefeInmediato,
+            pdf: b64,
+            filename: filename,
+            dedupeKey: dedupeKey,
+            submissionId: __submissionId,
+            reemplazarPorFactura: !!window.__forceReplaceByFactura
+          },
+          3,
+          __timeoutMs
+        );
+        // 90%: ACK recibido
+        if (typeof setProgress === 'function') setProgress(90);
+        var ok = !!(resp && (resp.ok === true || resp.status === 'OK'));
+        if (!ok) { throw new Error((resp && (resp.code || resp.message)) || 'GUARDADO_NO_CONFIRMADO'); }
+        // 100% y listo
+        if (typeof setProgress === 'function') setProgress(100);
+        hideProgress('Información enviada correctamente');
+        return resp;
+      } catch(e){
+        // Asegurar cierre del progreso en caso de error
+        try { hideProgress(); } catch(_){}
+        throw e;
+      }
     }
 
     function attachImageInputs(){ ['foto_tablero_antes','foto_bomba','foto_despues','foto_bomba_llenado','foto_frontal','foto_factura'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('change',function(){handleImageInput(id)},{passive:true}); }); }
@@ -1079,7 +1128,7 @@ function setDuplicadaState(isDup){
   } catch(_){}
 }
 
-var __forceReplaceByFactura = false;
+window.__forceReplaceByFactura = window.__forceReplaceByFactura || false;
 var __facturaAbort = null;
 async function validarFacturaSoloNumero(){
   // Solo validar con 16 dígitos exactos
