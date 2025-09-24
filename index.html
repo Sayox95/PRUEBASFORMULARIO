@@ -1545,6 +1545,64 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
+
+<script>
+// ==== Bloqueo de fechas futuras (max = hoy) ====
+(function () {
+  function todayLocalISO() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const today = todayLocalISO();
+
+  const dateInput =
+    document.getElementById('fecha') ||
+    document.getElementById('Fecha') ||
+    document.querySelector('input[name="fecha"]') ||
+    document.querySelector('input[name="Fecha"]') ||
+    document.querySelector('input[data-field="Fecha"]') ||
+    document.querySelector('input[type="date"]');
+
+  if (!dateInput) return;
+
+  // 1) Establecer límite máximo
+  dateInput.setAttribute('max', today);
+
+  // 2) Corregir si viniera precargada una fecha futura
+  if (dateInput.value && dateInput.value > today) {
+    dateInput.value = today;
+  }
+
+  // 3) Validación en cambios/tecleo
+  function enforceNoFuture() {
+    if (dateInput.value && dateInput.value > today) {
+      dateInput.value = today;
+      dateInput.setCustomValidity('No puedes elegir una fecha futura.');
+      dateInput.reportValidity();
+      setTimeout(() => dateInput.setCustomValidity(''), 0);
+    }
+  }
+  dateInput.addEventListener('input', enforceNoFuture, { passive: true });
+  dateInput.addEventListener('change', enforceNoFuture, { passive: true });
+
+  // 4) Guardia en submit (por si algún navegador ignora el max)
+  const form = dateInput.form || document.getElementById('form') || document.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', function (ev) {
+      if (dateInput.value && dateInput.value > today) {
+        ev.preventDefault();
+        dateInput.setCustomValidity('No puedes elegir una fecha futura.');
+        dateInput.reportValidity();
+        setTimeout(() => dateInput.setCustomValidity(''), 0);
+      }
+    });
+  }
+})();
+</script>
+
 </body>
 </html>
 \n
